@@ -323,7 +323,7 @@ layout: "friends"
       微信支付
     </td>
     <td align="center">
-      <img src="/static/images/alipay.jpg" alt="支付宝" width="200" /><br />
+      <img src="https://usj.cc/image/reward/alipay.jpg" alt="支付宝" width="200" /><br />
       支付宝
     </td>
   </tr>
