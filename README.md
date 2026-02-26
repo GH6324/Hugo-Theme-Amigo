@@ -319,11 +319,11 @@ layout: "friends"
 <table>
   <tr>
     <td align="center">
-      <img src="static/images/wechat-pay.jpg" alt="微信赞赏" width="200" /><br />
+      <img src="/static/images/wechat-pay.jpg" alt="微信赞赏" width="200" /><br />
       微信支付
     </td>
     <td align="center">
-      <img src="static/images/alipay.jpg" alt="支付宝" width="200" /><br />
+      <img src="/static/images/alipay.jpg" alt="支付宝" width="200" /><br />
       支付宝
     </td>
   </tr>
