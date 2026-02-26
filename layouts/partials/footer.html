@@ -1,1 +1,15 @@
-<p>Copyright {{ now.Year }}. All rights reserved.</p>
+<footer class="site-footer">
+            <div class="footer-content">
+                {{ if .Site.Params.icp }}
+                
+                    <div class="icp-info">
+                        <span>&copy; {{ now.Year }} {{ .Site.Title }} · </span>
+                        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">{{ .Site.Params.icp }}</a>
+                    </div>
+                {{ end }}
+
+                <p style="font-size: 12px;">Designed by <a href="https://github.com/zqlit" target="_blank" rel="noopener">zqlit</a> · Theme: <a href="https://github.com/zqlit/Hugo-Theme-Amigo" target="_blank" rel="noopener">Amigo</a> · 小站访问量 : <span id="busuanzi_site_pv"></span>&nbsp;次</p>
+                <!-- 接入卜算子统计 -->
+                <script defer pjax src="https://jsd.dusays.com/npm/penndu@17.0.0/bsz.js"></script>
+            </div>
+        </footer>

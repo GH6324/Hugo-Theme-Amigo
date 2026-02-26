@@ -3,10 +3,16 @@ let artalkInstances = [];
 document.addEventListener("DOMContentLoaded", function() {
     initMoments();
     initArtalk();
+    initTwikoo();
     initLightbox();
     initMenu();
     initTheme();
     initThemeToggle();
+    initHeaderMedia();
+    initLivePhotoShortcodes();
+    initArchiveFilter();
+    initHomeSearch();
+    initDanmaku();
 });
 
 // 页面跳转前，先把 Artalk 评论实例给销毁掉，省得占内存
@@ -17,15 +23,25 @@ document.addEventListener("pjax:send", function() {
         }
     });
     artalkInstances = [];
+    document.querySelectorAll('.twikoo-comments-area').forEach(el => {
+        el.innerHTML = '';
+        delete el.dataset.twikooInit;
+    });
 });
 
 // 页面加载完了（包括 PJAX 跳完后），重新初始化一波
 document.addEventListener("pjax:complete", function() {
     initMoments();
     initArtalk();
+    initTwikoo();
     initLightbox();
     initMenu();
     initThemeToggle();
+    initHeaderMedia();
+    initLivePhotoShortcodes();
+    initArchiveFilter();
+    initHomeSearch();
+    initDanmaku();
 });
 
 function initMenu() {
@@ -71,20 +87,57 @@ function initMenu() {
     });
 }
 
+function initTwikoo() {
+    const containers = document.querySelectorAll('.twikoo-comments-area');
+    if (!containers.length || !window.amigoConfig) return;
+    if (window.amigoConfig.commentMode !== 'twikoo') return;
+
+    const envId = window.amigoConfig.twikooEnvId;
+    if (!envId || !window.twikoo || typeof window.twikoo.init !== 'function') return;
+
+    containers.forEach(el => {
+        if (el.dataset.twikooInit) return;
+        el.dataset.twikooInit = '1';
+
+        const path = el.dataset.pageKey || location.pathname;
+        const config = { envId, el, path };
+        if (window.amigoConfig.twikooLang) config.lang = window.amigoConfig.twikooLang;
+
+        el.innerHTML = '';
+        window.twikoo.init(config);
+    });
+}
+
 /* ==========================================================================
    主题管理（深色/浅色模式）
    ========================================================================== */
 
 function initTheme() {
     const savedTheme = localStorage.getItem('theme');
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     
-    // 看看本地存没存，没存就看系统是不是深色的
-    if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-        document.documentElement.removeAttribute('data-theme');
+    // 应用主题的函数
+    function apply(isDark) {
+        if (isDark) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+        }
     }
+
+    // 初始化时：有本地存储就用本地的，没有就用系统的
+    if (savedTheme) {
+        apply(savedTheme === 'dark');
+    } else {
+        apply(mediaQuery.matches);
+    }
+
+    // 监听系统主题变化：如果用户没手动设置过，就跟随系统
+    mediaQuery.addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+            apply(e.matches);
+        }
+    });
 }
 
 function toggleTheme() {
@@ -159,6 +212,205 @@ function initLightbox() {
     }
 }
 
+function initHomeSearch() {
+    var header = document.querySelector('.home-header');
+    if (!header) return;
+    var input = document.getElementById('home-search-input');
+    var clearBtn = document.getElementById('home-search-clear');
+    if (!input || !clearBtn) return;
+
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.moments-feed .moment-card'));
+    var timer = null;
+
+    function applyFilter(q) {
+        var query = (q || '').trim().toLowerCase();
+        var anyVisible = false;
+        cards.forEach(function(card) {
+            var authorEl = card.querySelector('.moment-author');
+            var textEl = card.querySelector('.moment-text');
+            var timeEl = card.querySelector('.moment-time');
+            var locationEl = card.querySelector('.moment-location');
+            var tagsEl = card.querySelector('.moment-tags');
+            
+            var author = authorEl ? authorEl.textContent.trim().toLowerCase() : '';
+            var text = textEl ? textEl.textContent.trim().toLowerCase() : '';
+            var time = timeEl ? timeEl.textContent.trim().toLowerCase() : '';
+            var location = locationEl ? locationEl.textContent.trim().toLowerCase() : '';
+            var tags = tagsEl ? tagsEl.textContent.trim().toLowerCase() : '';
+            
+            var hit = !query || 
+                      author.indexOf(query) !== -1 || 
+                      text.indexOf(query) !== -1 || 
+                      time.indexOf(query) !== -1 || 
+                      location.indexOf(query) !== -1 ||
+                      tags.indexOf(query) !== -1;
+            
+            card.style.display = hit ? '' : 'none';
+            if (hit) anyVisible = true;
+        });
+        clearBtn.style.display = input.value ? 'flex' : 'none';
+        var emptyTip = document.getElementById('home-search-empty');
+        if (!emptyTip) {
+            emptyTip = document.createElement('div');
+            emptyTip.id = 'home-search-empty';
+            emptyTip.style.margin = '10px 0';
+            emptyTip.style.color = 'var(--text-muted)';
+            emptyTip.style.textAlign = 'center';
+            emptyTip.style.display = 'none';
+            var feed = document.querySelector('.moments-feed');
+            if (feed) feed.prepend(emptyTip);
+        }
+        emptyTip.textContent = '未找到匹配的内容';
+        emptyTip.style.display = anyVisible ? 'none' : 'block';
+    }
+
+    var newInput = input.cloneNode(true);
+    input.parentNode.replaceChild(newInput, input);
+    input = newInput;
+
+    var newClear = clearBtn.cloneNode(true);
+    clearBtn.parentNode.replaceChild(newClear, clearBtn);
+    clearBtn = newClear;
+
+    input.addEventListener('input', function() {
+        if (timer) clearTimeout(timer);
+        var value = input.value;
+        timer = setTimeout(function() { applyFilter(value); }, 150);
+    });
+
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            input.value = '';
+            applyFilter('');
+        }
+    });
+
+    clearBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        input.value = '';
+        applyFilter('');
+    });
+
+    // 监听标签点击，自动填充搜索框并过滤
+    var feed = document.querySelector('.moments-feed');
+    if (feed) {
+        feed.addEventListener('click', function(e) {
+            // 点击标签
+            if (e.target.classList.contains('moment-tag')) {
+                e.preventDefault();
+                e.stopPropagation();
+                var tagName = e.target.textContent.replace('#', '').trim();
+                input.value = tagName;
+                applyFilter(tagName);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            // 点击地点
+            else if (e.target.classList.contains('moment-location')) {
+                e.preventDefault();
+                e.stopPropagation();
+                var locName = e.target.textContent.trim();
+                input.value = locName;
+                applyFilter(locName);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+    }
+
+    applyFilter('');
+}
+function initArchiveFilter() {
+    var container = document.querySelector('.archive-view');
+    if (!container) return;
+
+    var header = document.getElementById('archive-header');
+    var blocks = container.querySelectorAll('.archive-year-block');
+    var card = document.getElementById('archive-author-card');
+    var cardName = card ? card.querySelector('.archive-author-name') : null;
+    var cardMeta = card ? card.querySelector('.archive-author-meta') : null;
+    var cardAvatar = card ? card.querySelector('.archive-author-avatar img') : null;
+
+    if (!header || !blocks.length) return;
+
+    var params = new URLSearchParams(window.location.search);
+    var author = params.get('author');
+    author = author ? author.trim() : '';
+
+    if (!author) {
+        header.textContent = '所有文章';
+        blocks.forEach(function(block) {
+            block.style.display = '';
+            var items = block.querySelectorAll('.archive-item');
+            items.forEach(function(item) {
+                item.style.display = '';
+            });
+        });
+        if (card) {
+            card.style.display = 'none';
+        }
+        return;
+    }
+
+    var target = author.toLowerCase();
+    var totalVisible = 0;
+
+    var avatarSrc = '';
+    var allItems = container.querySelectorAll('.archive-item');
+    allItems.forEach(function(item) {
+        var a = item.getAttribute('data-author') || '';
+        a = a.trim().toLowerCase();
+        if (!avatarSrc && a && a === target) {
+            avatarSrc = item.getAttribute('data-avatar') || '';
+        }
+    });
+
+    blocks.forEach(function(block) {
+        var items = block.querySelectorAll('.archive-item');
+        var anyVisible = false;
+
+        items.forEach(function(item) {
+            var a = item.getAttribute('data-author') || '';
+            a = a.trim().toLowerCase();
+            if (a && a === target) {
+                item.style.display = '';
+                anyVisible = true;
+                totalVisible++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        block.style.display = anyVisible ? '' : 'none';
+    });
+
+    if (totalVisible > 0) {
+        header.textContent = '作者：' + author + ' 的文章';
+        if (card) {
+            card.style.display = 'flex';
+        }
+        if (cardName) {
+            cardName.textContent = author;
+        }
+        if (cardMeta) {
+            cardMeta.textContent = '文章数：' + totalVisible;
+        }
+        if (cardAvatar && avatarSrc) {
+            cardAvatar.src = avatarSrc;
+        }
+    } else {
+        header.textContent = '暂无作者 “' + author + '” 的文章，已显示全部文章';
+        blocks.forEach(function(block) {
+            block.style.display = '';
+            var items = block.querySelectorAll('.archive-item');
+            items.forEach(function(item) {
+                item.style.display = '';
+            });
+        });
+        if (card) {
+            card.style.display = 'none';
+        }
+    }
+}
+
 function initArtalk() {
     const containers = document.querySelectorAll('.moment-comments-area');
     if (!containers.length || !window.amigoConfig) return;
@@ -203,20 +455,21 @@ function initArtalk() {
 
             const artalk = new ArtalkConstructor(config);
 
-            // 列表加载完后，我们要把它改成微信那种样式
             artalk.on('list-loaded', (comments) => {
+                let dataList = [];
+                if (Array.isArray(comments)) {
+                    dataList = comments;
+                } else if (comments && Array.isArray(comments.data)) {
+                    dataList = comments.data;
+                }
+
+                if (window.__amigoDanmakuPush && dataList.length) {
+                    window.__amigoDanmakuPush(dataList);
+                }
+
                 if (isFeed) {
-                    // 首页列表用我们自定义的渲染逻辑
-                    let dataList = [];
-                    if (Array.isArray(comments)) {
-                        dataList = comments;
-                    } else if (comments && Array.isArray(comments.data)) {
-                        dataList = comments.data;
-                    }
-                    
                     renderWeChatFeed(artalk, el, dataList);
                 } else {
-                    // 详情页就稍微修饰一下 DOM 就行
                     processWeChatStyle(el, false);
                 }
             });
@@ -458,12 +711,15 @@ function renderWeChatFeed(artalkInstance, container, comments) {
 
     const likesListSpan = likesArea.querySelector('.moment-likes-list');
 
-    if (likeNicks.length > 0) {
+    const hasLikes = likeNicks.length > 0;
+    const hasComments = normalComments.length > 0;
+    const hasActivity = hasLikes || hasComments;
+
+    if (hasLikes) {
         likesArea.style.display = 'flex'; 
         likesListSpan.textContent = likeNicks.join(', ');
 
-        // 没评论的话就把底边框去了，好看点
-        if (normalComments.length === 0) {
+        if (!hasComments) {
             likesArea.style.borderBottom = 'none';
             likesArea.style.marginBottom = '0';
             likesArea.style.paddingBottom = '0';
@@ -525,13 +781,15 @@ function renderWeChatFeed(artalkInstance, container, comments) {
                 }
             }
 
-            // Construct HTML
-            
+            // 主体部分（昵称 + 回复对象 + 内容）放在一块，方便右侧放时间
+            const mainSpan = document.createElement('span');
+            mainSpan.className = 'wechat-main';
+
             // Nickname
             const nickSpan = document.createElement('span');
             nickSpan.className = 'wechat-nick';
             nickSpan.textContent = c.nick;
-            itemDiv.appendChild(nickSpan);
+            mainSpan.appendChild(nickSpan);
 
             // Reply Logic
             if (replyTargetNick) {
@@ -540,15 +798,15 @@ function renderWeChatFeed(artalkInstance, container, comments) {
                 targetSpan.className = 'wechat-nick';
                 targetSpan.textContent = replyTargetNick;
                 
-                itemDiv.appendChild(replyText);
-                itemDiv.appendChild(targetSpan);
+                mainSpan.appendChild(replyText);
+                mainSpan.appendChild(targetSpan);
             }
 
             // Colon (Always present before content)
             const colonSpan = document.createElement('span');
             colonSpan.className = 'wechat-colon';
             colonSpan.textContent = ' : ';
-            itemDiv.appendChild(colonSpan);
+            mainSpan.appendChild(colonSpan);
 
             // Content
             const contentSpan = document.createElement('span');
@@ -564,22 +822,23 @@ function renderWeChatFeed(artalkInstance, container, comments) {
                });
             }
             contentSpan.innerHTML = tempC.innerHTML;
-            
-            itemDiv.appendChild(contentSpan);
+            mainSpan.appendChild(contentSpan);
 
-            // Time (WeChat style: small gray text on right)
+            // 时间
+            let timeSpan = null;
             if (c.date) {
-                const timeSpan = document.createElement('span');
+                timeSpan = document.createElement('span');
                 timeSpan.className = 'wechat-time';
                 timeSpan.textContent = formatWeChatTime(c.date);
-                itemDiv.appendChild(timeSpan);
             }
+
+            itemDiv.appendChild(mainSpan);
+            if (timeSpan) itemDiv.appendChild(timeSpan);
             
             listUl.appendChild(itemDiv);
         });
 
         customContainer.appendChild(listUl);
-        hasComments = true;
     }
 
     // 6. Handle Container Visibility (Empty State)
@@ -635,6 +894,412 @@ function processWeChatStyle(container, isFeed) {
 // Old function replaced by processWeChatStyle
 // function formatArtalkReplies(container, isFeed) { ... }
 
+function initHeaderMedia() {
+    var header = document.querySelector('.moments-header');
+    if (!header || !window.amigoConfig) return;
+    // 若已包含视频，跳过动态图逻辑
+    if (header.querySelector('video.moments-header-video')) return;
+
+    var list = (window.amigoConfig.headerMediaList || []).filter(function(src) {
+        return typeof src === 'string' && /\.(avif|jpg|jpeg|png|gif|webp)$/i.test(src);
+    });
+    var single = window.amigoConfig.headerMedia || '';
+    var isImage = /\.(avif|jpg|jpeg|png|gif|webp)$/i.test(single);
+    var isVideo = /\.(mp4|webm|ogg)$/i.test(single);
+
+    // 1) 多图轮播（参考：朴素实现）
+    if (list.length >= 2 && !isVideo) {
+        var dynamic = header.querySelector('.moments-header-dynamic');
+        if (!dynamic) {
+            dynamic = document.createElement('div');
+            dynamic.className = 'moments-header-dynamic';
+            header.appendChild(dynamic);
+        } else {
+            dynamic.innerHTML = '';
+        }
+
+        var slides = [];
+        list.forEach(function(src, idx) {
+            var img = document.createElement('img');
+            img.className = 'slide' + (idx === 0 ? ' active' : '');
+            img.src = src;
+            img.alt = 'header slide';
+            img.loading = 'eager';
+            dynamic.appendChild(img);
+            slides.push(img);
+        });
+
+        var i = 0;
+        function next() {
+            var cur = i;
+            var nxt = (i + 1) % slides.length;
+            slides[cur].classList.remove('active');
+            slides[nxt].classList.add('active');
+            i = nxt;
+            setTimeout(next, 6000);
+        }
+        setTimeout(next, 6000);
+        return;
+    }
+
+    // 2) 单图 Live Photo：同名视频触发播放（mouseenter / touch）
+    if (isImage && !isVideo) {
+        // 生成同名视频路径（.mp4）
+        var videoSrc = single.replace(/\.(avif|jpg|jpeg|png|gif|webp)$/i, '.mp4');
+        var video = document.createElement('video');
+        video.className = 'moments-header-live';
+        video.src = videoSrc;
+        video.playsInline = true;
+        video.setAttribute('playsinline', '');
+        video.loop = true;
+        video.preload = 'metadata';
+        // 允许声音，因交互触发，不受自动播放限制；如需静音可改为 video.muted = true;
+        video.muted = false;
+
+        var available = true;
+        video.addEventListener('error', function() {
+            available = false;
+            if (video && video.parentNode) video.parentNode.removeChild(video);
+        }, { once: true });
+        video.addEventListener('play', function() {
+            video.classList.add('playing');
+        });
+        video.addEventListener('pause', function() {
+            video.classList.remove('playing');
+        });
+
+        header.appendChild(video);
+
+        function playLive() {
+            if (!available) return;
+            // 交互触发播放，带声音
+            var p = video.play();
+            if (p && typeof p.catch === 'function') {
+                p.catch(function() {});
+            }
+        }
+        function stopLive() {
+            if (!available) return;
+            video.pause();
+            try { video.currentTime = 0; } catch(e) {}
+        }
+
+        header.addEventListener('mouseenter', playLive);
+        header.addEventListener('mouseleave', stopLive);
+        header.addEventListener('touchstart', function() {
+            playLive();
+        }, { passive: true });
+        header.addEventListener('touchend', function() {
+            stopLive();
+        }, { passive: true });
+        header.addEventListener('touchcancel', function() {
+            stopLive();
+        }, { passive: true });
+        return;
+    }
+}
+
+function initLivePhotoShortcodes() {
+    document.querySelectorAll('.live-photo').forEach(function(livePhoto) {
+        if (livePhoto.__liveBound) return;
+        livePhoto.__liveBound = true;
+
+        var video = livePhoto.querySelector('video.live-photo-video') || livePhoto.querySelector('video');
+        var posterImg = livePhoto.querySelector('img.live-photo-poster') || livePhoto.querySelector('img');
+        var toggleBtn = livePhoto.querySelector('.live-photo-toggle-btn');
+        var muteBtn = livePhoto.querySelector('.live-photo-mute-btn');
+        var warning = livePhoto.querySelector('.warning');
+
+        if (!video || !toggleBtn || !muteBtn) return;
+
+        var HOVER_DELAY = 500;
+        var hoverTimer = null;
+        var isManuallyControlled = toggleBtn.getAttribute('data-state') === 'live';
+        var isLoaded = false;
+
+        function setWarning(text) {
+            if (!warning) return;
+            warning.textContent = text || '';
+            if (text) warning.classList.add('show');
+            else warning.classList.remove('show');
+        }
+
+        function syncAspectFromPoster() {
+            if (!posterImg) return;
+            var w = posterImg.naturalWidth || 0;
+            var h = posterImg.naturalHeight || 0;
+            if (!w || !h) return;
+            livePhoto.style.setProperty('--live-photo-aspect', w + ' / ' + h);
+        }
+
+        if (posterImg && posterImg.complete) {
+            syncAspectFromPoster();
+        } else if (posterImg) {
+            posterImg.addEventListener('load', function() {
+                syncAspectFromPoster();
+            }, { once: true });
+        }
+
+        function ensureLoaded() {
+            if (isLoaded) return;
+            isLoaded = true;
+            var src = (video.dataset && video.dataset.src) ? video.dataset.src : '';
+            if (src && !video.getAttribute('src')) {
+                video.setAttribute('src', src);
+                video.src = src;
+            }
+            try { video.load(); } catch (e) {}
+        }
+
+        function setMuted(isMuted) {
+            video.muted = !!isMuted;
+            if (isMuted) video.setAttribute('muted', '');
+            else video.removeAttribute('muted');
+            muteBtn.setAttribute('data-muted', isMuted ? 'true' : 'false');
+        }
+
+        function getMuted() {
+            return muteBtn.getAttribute('data-muted') !== 'false';
+        }
+
+        if (!video.hasAttribute('muted')) setMuted(true);
+        else setMuted(getMuted());
+
+        function stopVideo(force) {
+            if (!force && isManuallyControlled) return;
+            if (hoverTimer) {
+                clearTimeout(hoverTimer);
+                hoverTimer = null;
+            }
+            livePhoto.classList.remove('is-playing');
+            setWarning('');
+            try { video.pause(); } catch (e) {}
+            try { video.currentTime = 0; } catch (e) {}
+        }
+
+        async function playVideo(opts) {
+            ensureLoaded();
+            setWarning('');
+
+            var wantUnmute = opts && opts.unmute === true;
+            if (wantUnmute) setMuted(false);
+            else setMuted(getMuted());
+
+            try { video.currentTime = 0; } catch (e) {}
+
+            try {
+                var p = video.play();
+                if (p && typeof p.catch === 'function') await p;
+                livePhoto.classList.add('is-playing');
+                return;
+            } catch (e) {
+                if (!video.muted) {
+                    setMuted(true);
+                    try {
+                        var p2 = video.play();
+                        if (p2 && typeof p2.catch === 'function') await p2;
+                        livePhoto.classList.add('is-playing');
+                        return;
+                    } catch (e2) {}
+                }
+
+                if (e && e.name === 'AbortError') return;
+                if (e && e.name === 'NotAllowedError') {
+                    setWarning('浏览器未允许视频自动播放权限，无法播放实况照片。');
+                } else if (e && e.name === 'NotSupportedError') {
+                    setWarning('视频未加载完成或浏览器不支持播放此视频格式。');
+                } else {
+                    setWarning('其它错误：' + e);
+                }
+            }
+        }
+
+        function scheduleHoverPlay() {
+            if (isManuallyControlled) return;
+            if (hoverTimer) clearTimeout(hoverTimer);
+            hoverTimer = setTimeout(function() {
+                playVideo({ unmute: false });
+            }, HOVER_DELAY);
+        }
+
+        livePhoto.addEventListener('mouseenter', function() {
+            scheduleHoverPlay();
+        });
+        livePhoto.addEventListener('mouseleave', function() {
+            stopVideo(false);
+        });
+
+        livePhoto.addEventListener('touchstart', function() {
+            scheduleHoverPlay();
+        }, { passive: true });
+        livePhoto.addEventListener('touchend', function() {
+            stopVideo(false);
+        }, { passive: true });
+        livePhoto.addEventListener('touchcancel', function() {
+            stopVideo(false);
+        }, { passive: true });
+
+        toggleBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            isManuallyControlled = !isManuallyControlled;
+            toggleBtn.setAttribute('data-state', isManuallyControlled ? 'live' : 'static');
+
+            if (isManuallyControlled) {
+                playVideo({ unmute: false });
+            } else {
+                stopVideo(true);
+            }
+        });
+
+        muteBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            var nextMuted = !getMuted();
+            setMuted(nextMuted);
+
+            if (!nextMuted && (isManuallyControlled || livePhoto.classList.contains('is-playing'))) {
+                playVideo({ unmute: true });
+            }
+        });
+
+        video.addEventListener('pause', function() {
+            if (!isManuallyControlled) {
+                livePhoto.classList.remove('is-playing');
+            }
+        });
+        video.addEventListener('ended', function() {
+            if (!isManuallyControlled) {
+                stopVideo(true);
+            }
+        });
+    });
+}
+
+function initDanmaku() {
+    const root = document.getElementById('danmaku-root');
+    if (!root || !window.amigoConfig) return;
+    if (window.__amigoDanmakuInit) return;
+
+    const cfg = window.amigoConfig;
+    if (cfg.commentMode !== 'artalk' || cfg.enableDanmaku === false) return;
+
+    window.__amigoDanmakuInit = true;
+
+    const trackCount = 6;
+    const tracks = [];
+    for (let i = 0; i < trackCount; i++) {
+        const trackEl = document.createElement('div');
+        trackEl.className = 'danmaku-track';
+        root.appendChild(trackEl);
+        tracks.push({ el: trackEl, busy: false });
+    }
+
+    let queue = [];
+    let lastFire = 0;
+    let gapMs = 1000;
+
+    function cleanContent(html) {
+        if (!html) return '';
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        const replyEls = temp.querySelectorAll('.atk-reply-at');
+        replyEls.forEach(function(node) {
+            node.remove();
+        });
+        let text = temp.textContent || '';
+        text = text.replace(/\[LIKE\]/gi, '').replace(/\/like/gi, '');
+        text = text.replace(/\s+/g, ' ');
+        return text.trim();
+    }
+
+    function normalizeItem(raw) {
+        if (!raw) return null;
+        const html = raw.content || raw.content_html || raw.comment || '';
+        const text = cleanContent(html);
+        if (!text) return null;
+        const nick = raw.nick || raw.name || '游客';
+        const date = raw.date || raw.created_at || raw.createdAt || '';
+        return { nick: nick, text: text, date: date };
+    }
+
+    window.__amigoDanmakuPush = function(list) {
+        if (!Array.isArray(list)) return;
+        list.forEach(function(raw) {
+            const item = normalizeItem(raw);
+            if (!item) return;
+            queue.push(item);
+            if (queue.length > 200) {
+                queue.splice(0, queue.length - 200);
+            }
+        });
+    };
+
+    function pushToTrack(track, item) {
+        const el = document.createElement('div');
+        el.className = 'danmaku-item';
+
+        const nickSpan = document.createElement('span');
+        nickSpan.className = 'danmaku-nick';
+        nickSpan.textContent = item.nick;
+
+        const sepSpan = document.createElement('span');
+        sepSpan.className = 'danmaku-sep';
+        sepSpan.textContent = ':';
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'danmaku-text';
+        textSpan.textContent = item.text;
+
+        el.appendChild(nickSpan);
+        el.appendChild(sepSpan);
+        el.appendChild(textSpan);
+
+        track.el.appendChild(el);
+
+        const duration = 12 + Math.random() * 6;
+        el.style.animation = 'danmaku-move ' + duration + 's linear forwards';
+
+        setTimeout(function() {
+            if (track.el.contains(el)) {
+                track.el.removeChild(el);
+            }
+            track.busy = false;
+        }, duration * 1000 + 200);
+    }
+
+    function loop() {
+        if (document.hidden) {
+            setTimeout(loop, 2000);
+            return;
+        }
+
+        if (queue.length) {
+            const now = Date.now();
+            if (now - lastFire >= gapMs) {
+                const available = tracks.find(t => !t.busy);
+                if (available) {
+                    const rootHeight = root.clientHeight || 200;
+                    const maxTop = Math.max(0, rootHeight - 28);
+                    const top = Math.random() * maxTop;
+                    available.el.style.top = top + 'px';
+                    const item = queue.shift();
+                    available.busy = true;
+                    pushToTrack(available, item);
+                    lastFire = now;
+                    gapMs = 900 + Math.floor(Math.random() * 600);
+                }
+            }
+        }
+
+        setTimeout(loop, 300);
+    }
+
+    setTimeout(loop, 1000);
+}
+
 function initMoments() {
     // 1. Handle Text Expand/Collapse
     const posts = document.querySelectorAll('.moment-card');
@@ -647,6 +1312,40 @@ function initMoments() {
         const toggleBtn = textWrapper.querySelector('.text-toggle');
 
         if (textDiv && toggleBtn) {
+            const livePhotos = Array.prototype.slice.call(textDiv.querySelectorAll('.live-photo'));
+            if (livePhotos.length) {
+                let liveWrap = card.querySelector('.moment-livephotos');
+                if (!liveWrap) {
+                    liveWrap = document.createElement('div');
+                    liveWrap.className = 'moment-livephotos moment-gallery';
+                } else {
+                    liveWrap.className = 'moment-livephotos moment-gallery';
+                    liveWrap.innerHTML = '';
+                }
+
+                if (livePhotos.length === 1) {
+                    const single = document.createElement('div');
+                    single.className = 'gallery-single';
+                    single.appendChild(livePhotos[0]);
+                    liveWrap.appendChild(single);
+                } else {
+                    const grid = document.createElement('div');
+                    const len = livePhotos.length;
+                    grid.className = 'gallery-grid ' + ((len === 2 || len === 4) ? 'cols-2' : 'cols-3');
+
+                    livePhotos.forEach(function(node) {
+                        const item = document.createElement('div');
+                        item.className = 'gallery-item';
+                        item.appendChild(node);
+                        grid.appendChild(item);
+                    });
+
+                    liveWrap.appendChild(grid);
+                }
+
+                textWrapper.insertAdjacentElement('afterend', liveWrap);
+            }
+
             // Reset state for re-init
             textDiv.classList.add('is-collapsed');
             toggleBtn.style.display = 'none';

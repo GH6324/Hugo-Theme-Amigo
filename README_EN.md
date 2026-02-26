@@ -14,7 +14,7 @@ Amigo is a minimalist blog theme for [Hugo](https://gohugo.io/), inspired by **W
 - 📱 **Moments UI**: Highly restored WeChat Moments visual experience, supporting 9-grid image display.
 - 🚀 **Full-site PJAX**: Smooth, no-refresh page transitions for an enhanced browsing experience.
 - 🌓 **Dark Mode**: Supports manual toggle and system-wide synchronization.
-- 💬 **Multi-comment Support**: Built-in support for **Artalk** (deeply adapted to Moments-style likes/comments) and **Giscus**.
+- 💬 **Multi-comment Support**: Built-in support for **Artalk / Twikoo / Giscus**.
 - 🖼️ **Image Lightbox**: Integrated ViewImage.js for zooming into images with a single click.
 - 🎨 **Beautiful Typography**: Optimized localized Chinese fonts (built-in *zql* font) for a better reading experience.
 - 🛠️ **Responsive Design**: Perfectly adapted for mobile, tablet, and desktop.
@@ -24,11 +24,38 @@ Amigo is a minimalist blog theme for [Hugo](https://gohugo.io/), inspired by **W
 
 *(Suggested: Add screenshots of your theme here)*
 
+## ⚙️ Preparation
+
+Before we start, let's get a few things ready:
+
+### Required Environment
+
+- **Hugo Extended**: Version >= 0.120 is recommended (Standard version might fail due to advanced features).
+- **Git**: To download the theme and pull updates.
+- **Build Environment**: A machine or CI/CD runner that can run `hugo --minify`.
+
+### Optional Services (Choose Your Comment System)
+
+**Artalk:**
+- A deployed Artalk backend (HTTPS is required).
+- Create a site in the admin panel and remember the `site` name.
+
+**Twikoo:**
+- Tencent Cloud: Remember the Environment ID (`envId`).
+- Vercel / Self-hosted: Remember the backend URL, e.g., `https://twikoo.your-domain.com`.
+- Make sure to configure CORS in the backend to allow your blog domain.
+
+**Giscus:**
+- A GitHub repository with Discussions enabled.
+- Go to [giscus.app](https://giscus.app) to generate the config and get parameters like `repo`, `repoId`, `category`.
+
+Once these are ready, we can start configuring!
+
 ## 🚀 Quick Start
 
-### 1. Installation
+### 1. Install Theme
 
-Run the following command in your Hugo site directory:
+Run this command in your Hugo site root directory:
 
 ```bash
 git clone https://github.com/your-username/hugo-theme-amigo.git themes/Amigo
@@ -36,65 +63,144 @@ git clone https://github.com/your-username/hugo-theme-amigo.git themes/Amigo
 
 ### 2. Configuration
 
-Add the following basic configuration to your `hugo.toml`:
+You can copy the `hugo.toml` from the theme directory to your site root, or add these settings to your existing `hugo.toml`:
 
 ```toml
 theme = "Amigo"
 
 [params]
-  username = "Your Nickname"
+  # --- Profile Info ---
+  username = "Your Name"
   avatar = "/images/avatar.jpg"
-  description = "A short bio"
-  cover = "/images/cover.jpg" # Homepage cover
+  description = "Life is dull, but running makes wind."
+  cover = "/images/header.png" # Homepage cover image
   
-  # Comment Mode: "artalk", "giscus", or "none"
+  # If you want to use a video cover, comment out 'cover' and use this:
+  # headerMedia = "/videos/cover-video.mp4"
+  
+  # --- Comment System ---
+  # Pick one you like: "artalk", "twikoo", "giscus" or "none" (disable all)
   commentMode = "artalk"
 
-  # Font Settings: "ZQL", "PingFangQiaoMuTi", "AlimamaFangYuanTi"
+  # --- Font Settings ---
+  # Options: "ZQL" (Handwritten), "Harmony" (HarmonyOS), "System" (Default)
   fontFamily = "ZQL"
 
-  # Artalk Configuration
-  artalkServer = "Your Artalk Server URL"
-  artalkSite = "Your Site Name"
-  
-  # Feature Toggles
-  enablePjax = true
-  enableLightbox = true
+  # --- Feature Toggles ---
+  showTags = true         # Show post tags
+  showLocation = true     # Show location info
+  enableSearch = true     # Enable search function
+  enableDarkMode = true   # Show dark mode toggle button
+  enablePjax = true       # Enable PJAX (seamless page switching)
+  enableLightbox = true   # Enable image lightbox (click to zoom)
+
+  # --- Artalk Config ---
+  artalkServer  = "https://your-artalk-server.com"
+  artalkSite    = "MyBlog"
+  enableDanmaku = true   # Enable bottom danmaku
+
+  # --- Twikoo Config (Choose one) ---
+  # Plan A: Tencent Cloud
+  # twikooEnvId = "your-env-id"
+  # Plan B: Vercel / Self-hosted
+  # twikooEnvId = "https://twikoo.your-domain.com"
+  twikooLang = "zh-CN"
+
+  # --- Giscus Config ---
+  # Generate from https://giscus.app and fill in here
+  giscusRepo             = ""
+  giscusRepoId           = ""
+  giscusCategory         = ""
+  giscusCategoryId       = ""
+  giscusMapping          = "pathname"
+  giscusStrict           = "0"
+  giscusReactionsEnabled = "1"
+  giscusEmitMetadata     = "0"
+  giscusInputPosition    = "bottom"
+  giscusLang             = "zh-CN"
+  giscusLoading          = "lazy"
+```
+
+#### Navigation Menu
+
+Setting up the menu is also simple. Add this to your `hugo.toml`:
+
+```toml
+[[menu.main]]
+  name = "Home"
+  url  = "/"
+  weight = 1
+
+[[menu.main]]
+  name = "About"
+  url  = "/about.html"
+  weight = 2
+
+[[menu.main]]
+  name = "Friends"
+  url  = "/friends.html"
+  weight = 3
 ```
 
 ## 📝 Usage Guide
 
 ### Directory Structure
 
+It is recommended to organize your files like this for better image management:
+
 ```text
 content/
-├── posts/           # Moments/Updates (Articles)
+├── posts/           # Moments/Updates
+│   ├── 2024/
+│   │   └── my-trip/
+│   │       ├── index.md    # Article content
+│   │       ├── photo1.jpg  # Image
+│   │       └── photo2.jpg
 ├── about.md         # About page
-└── friends.md       # Friends page (layout: "friends")
+└── friends.md       # Friends page
 ```
 
 ### Writing Updates (Posts)
 
-Create a `.md` file in the `content/posts/` directory:
+You can create a folder (Page Bundle) or a standalone `.md` file under `content/posts/`.  
+For better image management, it is recommended to create a folder per post:
 
 ```markdown
 ---
-title: "Nice weather today"
-date: 2024-05-20T12:00:00+08:00
+title: "Hiking Weekend"
+date: 2024-03-20
 author: "Vaica"
 location: "Wuhan · East Lake"
-images:
-  - "/images/posts/p1.jpg"
-  - "/images/posts/p2.jpg"
 ---
 
-The content of your update goes here...
+The weather is amazing today! Went for a walk in the park and saw so many flowers blooming. 🌸
+
+![Spring 1](photo1.jpg)
+![Spring 2](photo2.jpg)
+
+#Life #Spring #Photography
 ```
 
-### Comment Toggle Logic
+### Useful Shortcodes
 
-- **Posts**: Comments are enabled by default. Set `comments: false` to disable.
-- **Pages**: Comments are disabled by default. Set `comments: true` to enable (e.g., for a Guestbook).
+Amigo comes with some handy shortcodes to help you insert special content easily.
+
+#### Live Photo
+
+Want to show off those "Live Photo" moments like on iPhone? Use this:
+
+```markdown
+{{< livephoto image="cover.jpg" video="video.mp4" >}}
+```
+
+- `image`: The cover image (shown when static)
+- `video`: The video file (shown when playing)
+
+> 💡 Pro Tip: If your image and video share the same filename (e.g., `my-cat.jpg` and `my-cat.mp4`), you can just write `image="my-cat.jpg"`, and the theme will automatically find the matching video.
+
+---
+
+## 🚀 Deployment (GitHub Actions)
 
 ### Friends Configuration
 
@@ -107,14 +213,38 @@ Create `data/friends.yml` in your site's root directory:
   description: "Developer"
 ```
 
-And set `layout: "friends"` in `content/friends.md`.
+Then in `content/friends.md`:
+
+```markdown
+---
+title: "Friends"
+layout: "friends"
+---
+```
 
 ## 🛠️ Tech Stack
 
 - **SSG**: [Hugo](https://gohugo.io/)
 - **Icons**: [Remix Icon](https://remixicon.com/)
-- **Comments**: [Artalk](https://artalk.js.org/) / [Giscus](https://giscus.app/)
+- **Comments**: [Artalk](https://artalk.js.org/) / [Twikoo](https://twikoo.js.org/) / [Giscus](https://giscus.app/)
 - **JS Components**: ViewImage.js, PJAX.js
+
+## ☕ Buy Me a Coffee
+
+If you like this theme, you can buy me a coffee to support future development!
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="static/images/wechat-pay.jpg" alt="WeChat Pay" width="200" /><br />
+      WeChat Pay
+    </td>
+    <td align="center">
+      <img src="static/images/alipay.jpg" alt="Alipay" width="200" /><br />
+      Alipay
+    </td>
+  </tr>
+</table>
 
 ## 📄 License
 

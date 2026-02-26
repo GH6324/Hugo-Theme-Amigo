@@ -19,20 +19,27 @@
                         <span class="meta-dot">·</span>
                         <span class="meta-item location">{{ .Params.location }}</span>
                         {{ end }}
+                        <span class="meta-dot">·</span>
+                        <span>阅读量&nbsp;:</span>&nbsp;<span id="busuanzi_page_pv"></span>
                     </div>
                 </div>
 
                 {{/* 正文内容 */}}
                 <div class="article-text moment-text">
                     {{/* 这里同样剔除掉正文里的图片标签，图片会统一在下面的画廊里展示 */}}
-                    {{ .Content | replaceRE "(?s)<img[^>]*>" "" | safeHTML }}
+                    {{ $content := .Content }}
+                    {{ $content = $content | replaceRE "<img([^>]*data-keep=\"1\"[^>]*)>" "<keepimg$1>" }}
+                    {{ $content = $content | replaceRE "(?s)<img[^>]*>" "" }}
+                    {{ $content = $content | replaceRE "<keepimg([^>]*)>" "<img$1>" }}
+                    {{ $content | safeHTML }}
                 </div>
 
                 {{/* 图片展示 - 详情页使用大图垂直排列 */}}
                 {{ $images := .Params.images }}
                 {{ if not $images }}
                     {{/* 如果没有在头部写图片，就去正文里抓 */}}
-                    {{ $imgTags := findRE "<img[^>]+src=\"([^\"]+)\"[^>]*>" .Content }}
+                    {{ $contentForImages := .Content | replaceRE "<img[^>]*data-keep=\"1\"[^>]*>" "" }}
+                    {{ $imgTags := findRE "<img[^>]+src=\"([^\"]+)\"[^>]*>" $contentForImages }}
                     {{ if $imgTags }}
                         {{ $images = slice }}
                         {{ range $imgTags }}
@@ -66,7 +73,11 @@
         {{/* 评论区逻辑 */}}
         {{ $showComments := false }}
         {{ if eq .Section "posts" }}
-            {{ if ne .Params.comments false }}{{ $showComments = true }}{{ end }}
+            {{ if .Params.isAd }}
+                {{ if eq .Params.comments true }}{{ $showComments = true }}{{ end }}
+            {{ else }}
+                {{ if ne .Params.comments false }}{{ $showComments = true }}{{ end }}
+            {{ end }}
         {{ else }}
             {{ if eq .Params.comments true }}{{ $showComments = true }}{{ end }}
         {{ end }}
@@ -77,6 +88,10 @@
                 {{/* Artalk 评论（朋友圈风格） */}}
                 {{ if .Site.Params.artalkServer }}
                 <div class="moment-comments-area single-comments" id="comments-single" data-page-key="{{ .Permalink }}"></div>
+                {{ end }}
+            {{ else if eq .Site.Params.commentMode "twikoo" }}
+                {{ if .Site.Params.twikooEnvId }}
+                <div class="twikoo-comments-area" id="tcomment" data-page-key="{{ .RelPermalink }}"></div>
                 {{ end }}
             {{ else if eq .Site.Params.commentMode "giscus" }}
                 {{/* Giscus 评论（GitHub Discussions 风格） */}}
