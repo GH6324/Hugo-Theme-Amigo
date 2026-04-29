@@ -134,10 +134,6 @@
         {{ partial "footer.html" . }}
     </div>
 
-    {{ if and (not .IsHome) .Site.Params.artalkServer (eq .Site.Params.commentMode "artalk") (ne .Site.Params.enableDanmaku false) }}
-      <div id="danmaku-root" class="danmaku-root"></div>
-    {{ end }}
-
     <!-- Full Screen Menu Overlay -->
     <div id="menu-overlay">
         <div class="menu-content">

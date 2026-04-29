@@ -1,5 +1,45 @@
 let artalkInstances = [];
 
+// 点赞数缓存管理
+const LikesCache = {
+    prefix: 'likes_',
+
+    // 获取文章的点赞数缓存
+    get(pageKey) {
+        try {
+            const cached = sessionStorage.getItem(this.prefix + pageKey);
+            if (cached) {
+                const data = JSON.parse(cached);
+                return data.count || 0;
+            }
+        } catch (e) {
+            console.warn('读取点赞缓存失败:', e);
+        }
+        return null;
+    },
+
+    // 设置文章的点赞数缓存
+    set(pageKey, count) {
+        try {
+            sessionStorage.setItem(this.prefix + pageKey, JSON.stringify({
+                count: count,
+                time: Date.now()
+            }));
+        } catch (e) {
+            console.warn('设置点赞缓存失败:', e);
+        }
+    },
+
+    // 清除文章的点赞数缓存
+    clear(pageKey) {
+        try {
+            sessionStorage.removeItem(this.prefix + pageKey);
+        } catch (e) {
+            console.warn('清除点赞缓存失败:', e);
+        }
+    }
+};
+
 document.addEventListener("DOMContentLoaded", function() {
     initMoments();
     initArtalk();
@@ -13,6 +53,10 @@ document.addEventListener("DOMContentLoaded", function() {
     initArchiveFilter();
     initHomeSearch();
     initDanmaku();
+    initMusicPlayers();
+    initLivePhotoCards();
+    initMusicCardPlayers();
+    initMotionPhotos();
 });
 
 // 页面跳转前，先把 Artalk 评论实例给销毁掉，省得占内存
@@ -42,6 +86,10 @@ document.addEventListener("pjax:complete", function() {
     initArchiveFilter();
     initHomeSearch();
     initDanmaku();
+    initMusicPlayers();
+    initLivePhotoCards();
+    initMusicCardPlayers();
+    initMotionPhotos();
 });
 
 function initMenu() {
@@ -418,7 +466,7 @@ function initArtalk() {
     containers.forEach(el => {
         // 别重复初始化了
         if (el.dataset.artalkInit) return;
-        
+
         const pageKey = el.dataset.pageKey;
         if (!pageKey) return;
 
@@ -442,7 +490,7 @@ function initArtalk() {
                 flatMode: true, // 朋友圈风格一律用平铺模式
                 nestMax: 1,
                 gravatar: {
-                   mirror: 'https://cravatar.cn/avatar/'
+                   mirror: 'https://weavatar.com/avatar/'
                 }
             };
 
@@ -467,18 +515,65 @@ function initArtalk() {
                     window.__amigoDanmakuPush(dataList);
                 }
 
+                // 计算点赞数并缓存
+                const likeCount = dataList.filter(c => {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = c.content;
+                    const text = tempDiv.textContent.trim();
+                    const htmlContent = c.content || '';
+                    return (text === '[LIKE]' || text === '/like' || htmlContent.includes('[LIKE]'));
+                }).length;
+
+                // 缓存点赞数到 sessionStorage
+                LikesCache.set(pageKey, likeCount);
+
                 if (isFeed) {
                     renderWeChatFeed(artalk, el, dataList);
                 } else {
                     processWeChatStyle(el, false);
                 }
+
+                // 修改评论统计，只显示评论数量，不显示点赞数量
+                setTimeout(() => {
+                    const commentCountEl = el.querySelector('.atk-comment-count');
+                    if (commentCountEl) {
+                        const normalComments = dataList.filter(c => {
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = c.content;
+                            const text = tempDiv.textContent.trim();
+                            const htmlContent = c.content || '';
+                            return !(text === '[LIKE]' || text === '/like' || htmlContent.includes('[LIKE]'));
+                        });
+                        const countNum = commentCountEl.querySelector('.atk-comment-count-num');
+                        if (countNum) {
+                            countNum.textContent = normalComments.length;
+                        }
+                    }
+                }, 100);
             });
+
+            // 文章详情页：初始化功能
+            if (!isFeed) {
+                // 1. 使用DOM拦截方式验证邮箱（更可靠）
+                setTimeout(() => {
+                    initEmailValidationForSingle(el);
+                }, 300);
+
+                // 2. 评论列表加载后过滤访客评论
+                artalk.on('list-loaded', (data) => {
+                    // 延迟处理，确保DOM已渲染
+                    setTimeout(() => {
+                        filterVisitorComments(el);
+                    }, 100);
+                });
+            }
 
             artalkInstances.push(artalk);
             el.dataset.artalkInit = "true";
-            
-            // 绑定点赞按钮（只在首页列表有）
+
+            // 绑定点赞按钮
             if (isFeed) {
+                // 首页列表点赞
                 const card = el.closest('.moment-card');
                 if (card) {
                     const likeBtn = card.querySelector('.btn-like');
@@ -486,7 +581,7 @@ function initArtalk() {
                          likeBtn.addEventListener('click', (e) => {
                              e.stopPropagation();
                              e.preventDefault();
-                             
+
                              // 点完赞把那个弹出小框关了
                              const popover = likeBtn.closest('.action-popover');
                              if (popover) popover.classList.remove('is-visible');
@@ -495,6 +590,9 @@ function initArtalk() {
                          });
                     }
                 }
+            } else {
+                // 文章详情页点赞
+                initSingleLikeButton(artalk);
             }
 
         } catch (e) {
@@ -504,20 +602,219 @@ function initArtalk() {
 }
 
 /**
+ * 初始化文章详情页的点赞按钮
+ */
+function initSingleLikeButton(artalkInstance) {
+    const likeBtn = document.getElementById('single-like-btn');
+    if (!likeBtn || likeBtn.dataset.likeInit) return;
+
+    likeBtn.dataset.likeInit = 'true';
+
+    likeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // 添加点赞动画效果
+        likeBtn.classList.add('liked');
+        likeBtn.querySelector('i').className = 'ri-heart-3-fill';
+
+        handleLikeAction(artalkInstance);
+
+        // 恢复按钮状态（延迟一下，让用户看到反馈）
+        setTimeout(() => {
+            likeBtn.classList.remove('liked');
+            likeBtn.querySelector('i').className = 'ri-heart-line';
+        }, 2000);
+    });
+}
+
+/**
+ * 检查邮箱是否是访客邮箱（禁止评论）
+ * @param {string} email - 邮箱地址
+ * @returns {boolean} - true表示是访客邮箱，应该禁止
+ */
+function isVisitorEmail(email) {
+    if (!email) return false;
+
+    // 检查常见的访客邮箱模式
+    const visitorPatterns = [
+        /^visitor\d+@example\.com$/i,  // visitor123@example.com
+        /^guest\d+@example\.com$/i,    // guest123@example.com
+        /^anonymous@/i,                 // anonymous@anydomain
+        /^temp@/i,                      // temp@anydomain
+        /^test@/i,                      // test@anydomain
+    ];
+
+    return visitorPatterns.some(pattern => pattern.test(email));
+}
+
+/**
+ * 显示邮箱验证警告提示
+ * @param {string} message - 提示信息
+ */
+function showEmailWarning(message) {
+    console.log('[邮箱验证] 显示警告:', message);
+
+    // 移除已有的提示
+    const existingToast = document.querySelector('.email-warning-toast');
+    if (existingToast) {
+        existingToast.remove();
+    }
+
+    // 创建新的提示
+    const toast = document.createElement('div');
+    toast.className = 'email-warning-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // 显示动画
+    setTimeout(() => toast.classList.add('show'), 10);
+
+    // 3秒后自动消失
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+/**
+ * 生成随机访客名字
+ * @returns {string} 路过的访客XXXX格式的名字
+ */
+function generateRandomChineseName() {
+    const randomNum = Math.floor(Math.random() * 10000);
+    return '路过的访客' + String(randomNum).padStart(4, '0');
+}
+
+/**
+ * 生成访客邮箱
+ * @param {string} name - 昵称
+ * @returns {string} 邮箱地址
+ */
+function generateVisitorEmail(name) {
+    // 根据名字生成固定邮箱，确保同一访客头像一致
+    const randomNum = name.replace('路过的访客', '');
+    return `visitor${randomNum}@example.com`;
+}
+
+/**
+ * 过滤访客评论，只显示真实评论
+ * @param {HTMLElement} artalkEl - Artalk评论区容器元素
+ */
+function filterVisitorComments(artalkEl) {
+    if (!artalkEl) return;
+
+    // 查找所有评论项
+    const commentItems = artalkEl.querySelectorAll('.atk-comment');
+
+    commentItems.forEach(item => {
+        // 查找邮箱信息（如果有显示的话）
+        const contentEl = item.querySelector('.atk-content');
+        if (!contentEl) return;
+
+        const content = contentEl.innerHTML;
+
+        // 检查是否是点赞评论（包含 [LIKE] 标记）
+        const isLike = content.includes('[LIKE]') ||
+                       content.includes('/like') ||
+                       contentEl.textContent.trim() === '[LIKE]' ||
+                       contentEl.textContent.trim() === '/like';
+
+        if (isLike) {
+            // 隐藏点赞评论（在文章详情页不显示）
+            item.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * 为文章详情页的Artalk评论区初始化邮箱验证（DOM拦截方式）
+ * @param {HTMLElement} artalkEl - Artalk评论区容器元素
+ */
+function initEmailValidationForSingle(artalkEl) {
+    if (!artalkEl || artalkEl.dataset.emailValidationInit) return;
+
+    console.log('[邮箱验证] 初始化DOM拦截方式');
+
+    // 查找发送按钮
+    const sendBtn = artalkEl.querySelector('.atk-send-btn');
+    if (!sendBtn) {
+        console.warn('[邮箱验证] 未找到发送按钮，500ms后重试');
+        setTimeout(() => initEmailValidationForSingle(artalkEl), 500);
+        return;
+    }
+
+    // 使用捕获阶段拦截点击事件
+    sendBtn.addEventListener('click', function(e) {
+        console.log('[邮箱验证] 发送按钮被点击');
+
+        // 查找邮箱输入框
+        const emailInput = artalkEl.querySelector('input.atk-email');
+        if (!emailInput) {
+            console.warn('[邮箱验证] 未找到邮箱输入框');
+            return;
+        }
+
+        const email = emailInput.value.trim();
+        console.log('[邮箱验证] 邮箱值:', email);
+
+        // 检查是否是访客邮箱
+        if (isVisitorEmail(email)) {
+            console.log('[邮箱验证] 检测到访客邮箱，阻止提交');
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+
+            showEmailWarning('访客邮箱不允许评论，请使用真实邮箱地址');
+
+            // 恢复按钮状态
+            setTimeout(() => {
+                sendBtn.disabled = false;
+                sendBtn.textContent = '发送';
+            }, 100);
+
+            return false;
+        }
+
+        console.log('[邮箱验证] 邮箱验证通过');
+    }, true); // 使用捕获阶段
+
+    artalkEl.dataset.emailValidationInit = 'true';
+    console.log('[邮箱验证] DOM拦截初始化完成');
+}
+
+
+/**
+ * 获取IP归属地（中文）
+ */
+async function getIPLocation() {
+    try {
+        const response = await fetch('https://www.ip9.com.cn/?source=api');
+        const data = await response.json();
+        if (data.addr) {
+            return data.addr;
+        }
+        return '';
+    } catch (e) {
+        console.warn('获取IP归属地失败:', e);
+        return '';
+    }
+}
+
+/**
  * 处理点赞动作
  * 其实就是发条内容带 [LIKE] 的评论，咱们后面再把它渲染成爱心
  */
-function handleLikeAction(artalkInstance) {
-    // 看看用户是谁，没名字就随机分配一个“访客XXX”
+async function handleLikeAction(artalkInstance) {
+    // 看看用户是谁，没名字就随机分配一个真实风格的中文名字
     let user = artalkInstance.ctx.get('user').getData();
     let currentNick = user.nick;
     let currentEmail = user.email;
 
     if (!currentNick) {
-        const randomNum = Math.floor(Math.random() * 10000) + 1;
-        currentNick = `访客${randomNum}`;
-        currentEmail = `visitor${randomNum}@example.com`; // 瞎编个邮箱
-        
+        currentNick = generateRandomChineseName();
+        currentEmail = generateVisitorEmail(currentNick);
+
         try {
             artalkInstance.ctx.get('user').update({
                 nick: currentNick,
@@ -525,6 +822,9 @@ function handleLikeAction(artalkInstance) {
             });
         } catch (e) { console.warn('更新用户信息失败了', e); }
     }
+
+    // 获取IP归属地
+    const ipLocation = await getIPLocation();
 
     // 下面是一堆尝试获取编辑器并提交点赞的逻辑
     
@@ -557,12 +857,10 @@ function handleLikeAction(artalkInstance) {
         
         if (typeof Qmsg !== 'undefined') Qmsg.loading('正在点赞...', { autoClose: true });
 
-        // 随机来点点赞文案，显得有生气
-        const randomPhrases = [
-            '很棒的文章！', 'Get！', '不错不错', '支持一下', '写得很好', 'Mark', '顶一下', 'Interesting', 'Cool', '👍'
-        ];
-        const randomPhrase = randomPhrases[Math.floor(Math.random() * randomPhrases.length)];
-        const likeContent = `👍 已点赞 ${randomPhrase} <span style="display:none">[LIKE]</span>`;
+        // 生成点赞内容，包含IP归属地
+        const likeContent = ipLocation
+            ? `${ipLocation}的访客觉得这个文章很赞 <span style="display:none">[LIKE]</span>`
+            : '觉得这个文章很赞 <span style="display:none">[LIKE]</span>';
 
         const payload = {
             nick: currentNick,
@@ -577,6 +875,8 @@ function handleLikeAction(artalkInstance) {
 
         const onSuccess = () => {
              if (typeof Qmsg !== 'undefined') Qmsg.success('点赞成功！');
+             // 清除缓存，让下次加载时重新获取
+             LikesCache.clear(artalkInstance.conf.pageKey);
              artalkInstance.reload(); // 刷一下列表
         };
 
@@ -616,9 +916,12 @@ function handleLikeAction(artalkInstance) {
 
     // 有编辑器的话就简单了，填内容，提交！
     const originalContent = editor.getContent();
-    const randomPhrases = ['很棒的文章！', 'Get！', '不错不错', '支持一下', '写得很好', 'Mark', '顶一下', 'Interesting', 'Cool', '👍'];
-    const randomPhrase = randomPhrases[Math.floor(Math.random() * randomPhrases.length)];
-    const likeContent = `👍 已点赞 ${randomPhrase} <span style="display:none">[LIKE]</span>`;
+    const likeContent = ipLocation
+        ? `${ipLocation}的访客觉得这个文章很赞 <span style="display:none">[LIKE]</span>`
+        : '觉得这个文章很赞 <span style="display:none">[LIKE]</span>';
+
+    // 清除缓存，让下次加载时重新获取
+    LikesCache.clear(artalkInstance.conf.pageKey);
 
     editor.setContent(likeContent);
     editor.submit();
@@ -660,6 +963,12 @@ function renderWeChatFeed(artalkInstance, container, comments) {
     if (originalList) originalList.style.display = 'none';
     if (originalEditor) originalEditor.style.display = 'none';
 
+    // 隐藏Artalk自带的评论统计（包含点赞数量）
+    const commentCountEl = container.querySelector('.atk-comment-count');
+    if (commentCountEl) {
+        commentCountEl.style.display = 'none';
+    }
+
     // 2. 准备我们自己的容器
     let customContainer = container.querySelector('.wechat-custom-render');
     if (!customContainer) {
@@ -691,17 +1000,17 @@ function renderWeChatFeed(artalkInstance, container, comments) {
         }
     });
 
-    // 4. 渲染“赞”那一部分
+    // 4. 渲染”赞”那一部分
     let likesArea = container.querySelector('.moment-likes');
-    
+
     if (!likesArea) {
         likesArea = document.createElement('div');
         likesArea.className = 'moment-likes';
-        
+
         const icon = document.createElement('i');
         icon.className = 'ri-heart-line';
         likesArea.appendChild(icon);
-        
+
         const listSpan = document.createElement('span');
         listSpan.className = 'moment-likes-list';
         likesArea.appendChild(listSpan);
@@ -711,13 +1020,18 @@ function renderWeChatFeed(artalkInstance, container, comments) {
 
     const likesListSpan = likesArea.querySelector('.moment-likes-list');
 
-    const hasLikes = likeNicks.length > 0;
+    // 优先使用缓存的点赞数，如果没有则使用实时计算的
+    const pageKey = artalkInstance.conf.pageKey;
+    const cachedCount = LikesCache.get(pageKey);
+    const likeCount = cachedCount !== null ? cachedCount : likeNicks.length;
+
+    const hasLikes = likeCount > 0;
     const hasComments = normalComments.length > 0;
     const hasActivity = hasLikes || hasComments;
 
     if (hasLikes) {
-        likesArea.style.display = 'flex'; 
-        likesListSpan.textContent = likeNicks.join(', ');
+        likesArea.style.display = 'flex';
+        likesListSpan.textContent = likeCount + ' 人觉得很赞';
 
         if (!hasComments) {
             likesArea.style.borderBottom = 'none';
@@ -859,35 +1173,55 @@ function renderWeChatFeed(artalkInstance, container, comments) {
 function processWeChatStyle(container, isFeed) {
     if (isFeed) return; // Feed uses renderWeChatFeed instead
 
-    // Wait for DOM to be ready (Artalk renders async)
-    // We use a small timeout or assume this is called after list-loaded
-    
-    const items = container.querySelectorAll('.atk-item');
-    
-    items.forEach(item => {
-        const contentEl = item.querySelector('.atk-content');
-        if (!contentEl) return;
-
-        const htmlContent = contentEl.innerHTML;
-        const textContent = contentEl.textContent.trim();
-        
-        // Check for [LIKE] marker in text or hidden span
-        const isLike = textContent === '[LIKE]' || 
-                       textContent === '/like' || 
-                       htmlContent.includes('[LIKE]');
-
-        if (isLike) {
-            item.style.display = 'none';
-        }
-    });
-    
-    // Also, we might want to change the "No Comments" text if empty
+    // 先隐藏整个列表，避免闪烁
     const list = container.querySelector('.atk-list');
-    if (list && list.children.length === 0) {
-        // Artalk handles empty state, but if we hid everything, we might need to show something?
-        // Usually Artalk shows "No comments" if data is empty. 
-        // If data had only likes, Artalk thinks there are comments, but we hid them.
-        // We should check visible items.
+    if (list) {
+        list.style.visibility = 'hidden';
+    }
+
+    // 使用 MutationObserver 监听 DOM 变化，过滤点赞评论
+    const filterLikes = () => {
+        const items = container.querySelectorAll('.atk-item');
+        let hasVisibleItems = false;
+
+        items.forEach(item => {
+            // 如果已经处理过，跳过
+            if (item.dataset.likeFiltered) return;
+
+            const contentEl = item.querySelector('.atk-content');
+            if (!contentEl) return;
+
+            const htmlContent = contentEl.innerHTML;
+            const textContent = contentEl.textContent.trim();
+
+            // Check for [LIKE] marker in text or hidden span
+            const isLike = textContent === '[LIKE]' ||
+                           textContent === '/like' ||
+                           htmlContent.includes('[LIKE]');
+
+            if (isLike) {
+                item.style.display = 'none';
+                item.dataset.likeFiltered = 'true';
+            } else {
+                hasVisibleItems = true;
+                item.dataset.likeFiltered = 'true';
+            }
+        });
+
+        // 显示列表（过滤完成后）
+        if (list) {
+            list.style.visibility = 'visible';
+        }
+
+        return hasVisibleItems;
+    };
+
+    // 立即尝试过滤
+    const hasItems = filterLikes();
+
+    // 如果没有找到项目，设置一个短延迟再试一次（等待 Artalk 渲染）
+    if (!hasItems) {
+        setTimeout(filterLikes, 100);
     }
 }
 
@@ -1300,10 +1634,84 @@ function initDanmaku() {
     setTimeout(loop, 1000);
 }
 
+/**
+ * 格式化时间显示（微信朋友圈风格）
+ * 今天：显示"今天"或具体时间
+ * 昨天：显示"昨天"
+ * 本周：显示星期几
+ * 更早：显示具体日期
+ */
+function formatMomentTimes() {
+    const timeElements = document.querySelectorAll('.moment-time[data-moment-time]');
+
+    timeElements.forEach(el => {
+        const timeStr = el.dataset.momentTime;
+        if (!timeStr) return;
+
+        const date = new Date(timeStr);
+        const now = new Date();
+
+        // 计算时间差
+        const diffMs = now - date;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+        // 获取今天的日期
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        // 判断是否是今天
+        const isToday = date >= today;
+        // 判断是否是昨天
+        const isYesterday = date >= yesterday && date < today;
+
+        // 获取星期几
+        const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+        const weekDay = weekDays[date.getDay()];
+
+        // 格式化时间
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const timeStr24 = `${hours}:${minutes}`;
+
+        let displayText = '';
+
+        if (isToday) {
+            // 今天：显示时间
+            displayText = timeStr24;
+        } else if (isYesterday) {
+            // 昨天：显示"昨天"
+            displayText = '昨天';
+        } else if (diffDays < 7) {
+            // 本周内：显示星期几
+            displayText = weekDay;
+        } else {
+            // 更早：显示具体日期
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            const year = date.getFullYear();
+            const currentYear = now.getFullYear();
+
+            if (year === currentYear) {
+                // 今年：显示月日
+                displayText = `${month}月${day}日`;
+            } else {
+                // 其他年份：显示年月日
+                displayText = `${year}年${month}月${day}日`;
+            }
+        }
+
+        el.textContent = displayText;
+    });
+}
+
 function initMoments() {
+    // 0. 格式化时间显示（微信朋友圈风格）
+    formatMomentTimes();
+
     // 1. Handle Text Expand/Collapse
     const posts = document.querySelectorAll('.moment-card');
-    
+
     posts.forEach(card => {
         const textWrapper = card.querySelector('.moment-text-wrapper');
         if (!textWrapper) return;
@@ -1346,16 +1754,51 @@ function initMoments() {
                 textWrapper.insertAdjacentElement('afterend', liveWrap);
             }
 
+            // 检测实况照片（motion-photo）和音乐卡片，有的话取消折叠
+            const motionPhotos = textDiv.querySelectorAll('.amigo-motion-photo-mark');
+            const musicCards = textDiv.querySelectorAll('.amigo-music-card-mark');
+
+            // 清理旧状态
+            textDiv.classList.remove('has-motion-photos', 'has-music-card');
+            textWrapper.classList.remove('has-motion-photos', 'has-music-card');
+            textDiv.removeAttribute('data-motion-count');
+
+            if (motionPhotos.length) {
+                textDiv.classList.add('has-motion-photos');
+                textWrapper.classList.add('has-motion-photos');
+                textDiv.dataset.motionCount = String(motionPhotos.length);
+                // 设置网格列数
+                const cols = Math.min(motionPhotos.length, 3);
+                const colsMd = Math.min(motionPhotos.length, 2);
+                const colsSm = 1;
+                textDiv.style.setProperty('--motion-photo-columns', String(cols));
+                textDiv.style.setProperty('--motion-photo-columns-md', String(colsMd));
+                textDiv.style.setProperty('--motion-photo-columns-sm', String(colsSm));
+            }
+
+            if (musicCards.length) {
+                textDiv.classList.add('has-music-card');
+                textWrapper.classList.add('has-music-card');
+            }
+
             // Reset state for re-init
             textDiv.classList.add('is-collapsed');
             toggleBtn.style.display = 'none';
             toggleBtn.innerText = '全文';
 
+            // 如果有实况照片或音乐卡片，不需要折叠
+            const hasSpecialContent = motionPhotos.length > 0 || musicCards.length > 0;
+
             // Check overflow after a small delay to ensure rendering
             setTimeout(() => {
-                const isOverflowing = textDiv.scrollHeight > textDiv.clientHeight;
-                if (isOverflowing) {
-                    toggleBtn.style.display = 'inline-block';
+                if (hasSpecialContent) {
+                    // 有特殊内容时不显示全文按钮
+                    toggleBtn.style.display = 'none';
+                } else {
+                    const isOverflowing = textDiv.scrollHeight > textDiv.clientHeight;
+                    if (isOverflowing) {
+                        toggleBtn.style.display = 'inline-block';
+                    }
                 }
             }, 100);
 
@@ -1396,7 +1839,7 @@ function initMoments() {
         if (toggleBtn && popover) {
             toggleBtn.onclick = function(e) {
                 e.stopPropagation(); // Prevent document click
-                
+
                 // Close others first
                 document.querySelectorAll('.action-popover').forEach(el => {
                     if (el !== popover) el.classList.remove('is-visible');
@@ -1405,6 +1848,626 @@ function initMoments() {
                 // Toggle current
                 popover.classList.toggle('is-visible');
             };
+        }
+    });
+}
+
+/* ==========================================================================
+   紧凑音乐卡片播放器 (music-card)
+   ========================================================================== */
+
+class MusicCardPlayer {
+    constructor(container) {
+        this.container = container;
+        this.isPlaying = false;
+        this.isSeeking = false;
+
+        this.src = container.dataset.src;
+        this.name = container.dataset.name;
+        this.artist = container.dataset.artist;
+        this.isApi = container.dataset.isApi === 'true';
+
+        this.audio = container.querySelector('.amigo-music-card__audio');
+        this.playBtn = container.querySelector('.amigo-music-card__play');
+        this.seekInput = container.querySelector('.amigo-music-card__seek');
+        this.seekThumb = container.querySelector('.amigo-music-card__seek-thumb');
+        this.seekWrap = container.querySelector('.amigo-music-card__seek-wrap');
+        this.timeCurrent = container.querySelector('.amigo-music-card__time--current');
+        this.timeDuration = container.querySelector('.amigo-music-card__time--duration');
+
+        if (this.isApi && this.src) {
+            this.fetchAndSetAudioUrl(this.src);
+        } else if (this.audio && this.src) {
+            this.audio.src = this.src;
+        }
+
+        this.bindEvents();
+    }
+
+    async fetchAndSetAudioUrl(apiUrl) {
+        try {
+            const response = await fetch(apiUrl);
+            const data = await response.json();
+            if (data.url && this.audio) {
+                this.audio.src = data.url;
+            }
+        } catch (e) {
+            console.error('获取音频URL失败:', e);
+        }
+    }
+
+    bindEvents() {
+        if (this.playBtn) {
+            this.playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.togglePlay();
+            });
+        }
+
+        // 点击封面区域也可以播放
+        const art = this.container.querySelector('.amigo-music-card__art');
+        if (art) {
+            art.addEventListener('click', () => this.togglePlay());
+        }
+
+        if (this.seekInput) {
+            this.seekInput.addEventListener('input', (e) => {
+                this.isSeeking = true;
+                this.updateSeekVisual(e.target.value / 1000);
+            });
+            this.seekInput.addEventListener('change', (e) => {
+                if (this.audio && this.audio.duration) {
+                    this.audio.currentTime = (e.target.value / 1000) * this.audio.duration;
+                }
+                this.isSeeking = false;
+            });
+        }
+
+        if (this.audio) {
+            this.audio.addEventListener('timeupdate', () => this.onTimeUpdate());
+            this.audio.addEventListener('loadedmetadata', () => this.onLoadedMetadata());
+            this.audio.addEventListener('ended', () => this.onEnded());
+            this.audio.addEventListener('play', () => this.onPlay());
+            this.audio.addEventListener('pause', () => this.onPause());
+        }
+    }
+
+    togglePlay() {
+        if (!this.audio) return;
+        if (this.isPlaying) {
+            this.audio.pause();
+        } else {
+            this.audio.play().catch(e => console.error('播放失败:', e));
+        }
+    }
+
+    onPlay() {
+        this.isPlaying = true;
+        this.container.setAttribute('data-playing', 'true');
+        if (this.playBtn) this.playBtn.setAttribute('aria-pressed', 'true');
+    }
+
+    onPause() {
+        this.isPlaying = false;
+        this.container.setAttribute('data-playing', 'false');
+        if (this.playBtn) this.playBtn.setAttribute('aria-pressed', 'false');
+    }
+
+    onEnded() {
+        this.isPlaying = false;
+        this.container.setAttribute('data-playing', 'false');
+        if (this.playBtn) this.playBtn.setAttribute('aria-pressed', 'false');
+        if (this.audio) this.audio.currentTime = 0;
+        this.updateSeekVisual(0);
+    }
+
+    onTimeUpdate() {
+        if (this.isSeeking || !this.audio || !this.audio.duration) return;
+        const progress = this.audio.currentTime / this.audio.duration;
+        this.updateSeekVisual(progress);
+        if (this.timeCurrent) {
+            this.timeCurrent.textContent = this.formatTime(this.audio.currentTime);
+        }
+    }
+
+    onLoadedMetadata() {
+        if (this.timeDuration && this.audio) {
+            this.timeDuration.textContent = this.formatTime(this.audio.duration);
+        }
+    }
+
+    updateSeekVisual(progress) {
+        const pct = Math.max(0, Math.min(1, progress)) * 100;
+        this.container.style.setProperty('--music-progress', pct + '%');
+        if (this.seekInput) this.seekInput.value = Math.round(progress * 1000);
+        if (this.timeCurrent && this.audio && this.audio.duration) {
+            this.timeCurrent.textContent = this.formatTime(progress * this.audio.duration);
+        }
+    }
+
+    formatTime(seconds) {
+        if (!seconds || isNaN(seconds)) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }
+}
+
+function initMusicCardPlayers() {
+    const cards = document.querySelectorAll('.amigo-music-card[data-amigo-music-card]');
+    cards.forEach(card => {
+        if (!card.dataset.cardInit) {
+            new MusicCardPlayer(card);
+            card.dataset.cardInit = 'true';
+        }
+    });
+}
+
+/* ==========================================================================
+   Motion Photo 实况照片功能
+   ========================================================================== */
+
+class MotionPhoto {
+    constructor(container) {
+        this.container = container;
+        this.video = container.querySelector('.live-photo-video');
+        this.toggleBtn = container.querySelector('.live-photo-toggle-btn');
+        this.muteBtn = container.querySelector('.live-photo-mute-btn');
+
+        this.isPlaying = false;
+        this.isMuted = true;
+        this.isLocked = false; // 手动锁定播放状态
+
+        this.hoverDelay = parseInt(container.dataset.hoverDelay) || 500;
+        this.hoverTimer = null;
+
+        // 懒加载视频
+        this.videoLoaded = false;
+        this.loadVideo();
+
+        this.bindEvents();
+    }
+
+    loadVideo() {
+        if (!this.video) return;
+        const dataSrc = this.video.dataset.src;
+        if (dataSrc && !this.video.src) {
+            this.video.src = dataSrc;
+            this.videoLoaded = true;
+        }
+    }
+
+    bindEvents() {
+        // 悬停播放
+        this.container.addEventListener('mouseenter', () => {
+            if (this.isLocked) return;
+            this.hoverTimer = setTimeout(() => {
+                this.play();
+            }, this.hoverDelay);
+        });
+
+        this.container.addEventListener('mouseleave', () => {
+            clearTimeout(this.hoverTimer);
+            if (this.isLocked) return;
+            this.pause();
+        });
+
+        // 移动端触摸
+        this.container.addEventListener('touchstart', () => {
+            if (this.isLocked) return;
+            this.hoverTimer = setTimeout(() => {
+                this.play();
+            }, this.hoverDelay);
+        }, { passive: true });
+
+        // LIVE 按钮切换锁定
+        if (this.toggleBtn) {
+            this.toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.isLocked = !this.isLocked;
+                if (this.isLocked) {
+                    this.play();
+                    this.toggleBtn.dataset.state = 'playing';
+                    this.toggleBtn.setAttribute('aria-pressed', 'true');
+                } else {
+                    this.pause();
+                    this.toggleBtn.dataset.state = 'static';
+                    this.toggleBtn.setAttribute('aria-pressed', 'false');
+                }
+            });
+        }
+
+        // 静音按钮
+        if (this.muteBtn) {
+            this.muteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleMute();
+            });
+        }
+
+        // 视频事件
+        if (this.video) {
+            this.video.addEventListener('play', () => {
+                this.isPlaying = true;
+                this.container.classList.add('is-playing');
+            });
+            this.video.addEventListener('pause', () => {
+                this.isPlaying = false;
+                this.container.classList.remove('is-playing');
+            });
+        }
+    }
+
+    play() {
+        if (!this.video || this.isPlaying) return;
+        this.video.currentTime = 0;
+        this.video.play().catch(() => {});
+    }
+
+    pause() {
+        if (!this.video || !this.isPlaying) return;
+        this.video.pause();
+        this.video.currentTime = 0;
+    }
+
+    toggleMute() {
+        if (!this.video) return;
+        this.isMuted = !this.isMuted;
+        this.video.muted = this.isMuted;
+        if (this.muteBtn) {
+            this.muteBtn.dataset.muted = this.isMuted.toString();
+            // 切换图标
+            const mutedIcon = this.muteBtn.querySelector('.icon-muted');
+            const unmutedIcon = this.muteBtn.querySelector('.icon-unmuted');
+            if (mutedIcon) mutedIcon.style.display = this.isMuted ? 'block' : 'none';
+            if (unmutedIcon) unmutedIcon.style.display = this.isMuted ? 'none' : 'block';
+        }
+    }
+}
+
+function initMotionPhotos() {
+    const containers = document.querySelectorAll('.live-photo-container');
+    containers.forEach(container => {
+        if (!container.dataset.motionInit) {
+            new MotionPhoto(container);
+            container.dataset.motionInit = 'true';
+        }
+    });
+}
+
+/* ==========================================================================
+   音乐播放器功能
+   ========================================================================== */
+
+class MusicPlayer {
+    constructor(container) {
+        this.container = container;
+        this.audio = new Audio();
+        this.playlist = [];
+        this.currentIndex = 0;
+        this.isPlaying = false;
+
+        this.init();
+    }
+
+    init() {
+        this.src = this.container.dataset.src;
+        this.cover = this.container.dataset.cover;
+        this.name = this.container.dataset.name;
+        this.artist = this.container.dataset.artist;
+
+        // 检查是否有播放列表
+        const playlistEl = this.container.querySelector('.music-playlist');
+        if (playlistEl) {
+            try {
+                this.playlist = JSON.parse(playlistEl.textContent);
+                if (this.playlist.length > 0) {
+                    this.src = this.playlist[0].src;
+                    this.cover = this.playlist[0].cover;
+                    this.name = this.playlist[0].name;
+                    this.artist = this.playlist[0].artist;
+                }
+            } catch (e) {
+                console.error('播放列表解析失败:', e);
+            }
+        } else if (this.src) {
+            this.playlist = [{
+                src: this.src,
+                cover: this.cover,
+                name: this.name,
+                artist: this.artist
+            }];
+        }
+
+        // 获取DOM元素
+        this.coverImg = this.container.querySelector('.music-cover');
+        this.nameEl = this.container.querySelector('.music-name');
+        this.artistEl = this.container.querySelector('.music-artist');
+        this.progressCurrent = this.container.querySelector('.music-progress-current');
+        this.timeCurrent = this.container.querySelector('.music-time-current');
+        this.timeTotal = this.container.querySelector('.music-time-total');
+        this.progressBar = this.container.querySelector('.music-progress-bar');
+
+        this.playBtns = [
+            this.container.querySelector('.music-btn-play'),
+            this.container.querySelector('.music-btn-play-main')
+        ].filter(Boolean);
+
+        this.prevBtn = this.container.querySelector('.music-btn-prev');
+        this.nextBtn = this.container.querySelector('.music-btn-next');
+
+        // 绑定事件
+        this.bindEvents();
+
+        // 加载音频
+        if (this.src) {
+            this.loadTrack(this.src);
+        }
+    }
+
+    bindEvents() {
+        this.playBtns.forEach(btn => {
+            btn.addEventListener('click', () => this.togglePlay());
+        });
+
+        if (this.prevBtn) {
+            this.prevBtn.addEventListener('click', () => this.prev());
+        }
+
+        if (this.nextBtn) {
+            this.nextBtn.addEventListener('click', () => this.next());
+        }
+
+        if (this.progressBar) {
+            this.progressBar.addEventListener('click', (e) => {
+                const rect = this.progressBar.getBoundingClientRect();
+                const percent = (e.clientX - rect.left) / rect.width;
+                this.audio.currentTime = percent * this.audio.duration;
+            });
+        }
+
+        this.audio.addEventListener('timeupdate', () => this.updateProgress());
+        this.audio.addEventListener('loadedmetadata', () => this.updateDuration());
+        this.audio.addEventListener('ended', () => this.onTrackEnd());
+        this.audio.addEventListener('play', () => this.onPlay());
+        this.audio.addEventListener('pause', () => this.onPause());
+    }
+
+    loadTrack(src) {
+        this.audio.src = src;
+        this.audio.load();
+    }
+
+    togglePlay() {
+        if (this.isPlaying) {
+            this.audio.pause();
+        } else {
+            this.audio.play().catch(e => console.error('播放失败:', e));
+        }
+    }
+
+    prev() {
+        if (this.playlist.length === 0) return;
+        this.currentIndex = (this.currentIndex - 1 + this.playlist.length) % this.playlist.length;
+        this.updateTrack();
+        this.play();
+    }
+
+    next() {
+        if (this.playlist.length === 0) return;
+        this.currentIndex = (this.currentIndex + 1) % this.playlist.length;
+        this.updateTrack();
+        this.play();
+    }
+
+    updateTrack() {
+        const track = this.playlist[this.currentIndex];
+        if (!track) return;
+
+        this.src = track.src;
+        this.cover = track.cover;
+        this.name = track.name;
+        this.artist = track.artist;
+
+        if (this.coverImg) this.coverImg.src = this.cover;
+        if (this.nameEl) this.nameEl.textContent = this.name;
+        if (this.artistEl) this.artistEl.textContent = this.artist;
+
+        this.loadTrack(this.src);
+    }
+
+    updateProgress() {
+        if (this.audio.duration) {
+            const percent = (this.audio.currentTime / this.audio.duration) * 100;
+            if (this.progressCurrent) this.progressCurrent.style.width = percent + '%';
+            if (this.timeCurrent) this.timeCurrent.textContent = this.formatTime(this.audio.currentTime);
+        }
+    }
+
+    updateDuration() {
+        if (this.timeTotal) this.timeTotal.textContent = this.formatTime(this.audio.duration);
+    }
+
+    onTrackEnd() {
+        if (this.playlist.length > 1) {
+            this.next();
+        } else {
+            this.isPlaying = false;
+            this.container.classList.remove('playing');
+            this.updatePlayButton();
+        }
+    }
+
+    onPlay() {
+        this.isPlaying = true;
+        this.container.classList.add('playing');
+        this.updatePlayButton();
+    }
+
+    onPause() {
+        this.isPlaying = false;
+        this.container.classList.remove('playing');
+        this.updatePlayButton();
+    }
+
+    updatePlayButton() {
+        const icon = this.isPlaying ? 'ri-pause-fill' : 'ri-play-fill';
+        this.playBtns.forEach(btn => {
+            const i = btn.querySelector('i');
+            if (i) i.className = icon;
+        });
+    }
+
+    formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }
+}
+
+function initMusicPlayers() {
+    const players = document.querySelectorAll('.music-player');
+    players.forEach(player => {
+        if (!player.dataset.musicInit) {
+            new MusicPlayer(player);
+            player.dataset.musicInit = 'true';
+        }
+    });
+}
+
+/* ==========================================================================
+   精美 Live 动图卡片功能
+   ========================================================================== */
+
+class LivePhotoCard {
+    constructor(container) {
+        this.container = container;
+        this.isPlaying = false;
+        this.isMuted = true;
+
+        this.init();
+    }
+
+    init() {
+        this.src = this.container.dataset.src;
+        this.videoSrc = this.container.dataset.video;
+
+        this.video = this.container.querySelector('.live-card-video');
+        this.playBtn = this.container.querySelector('.live-card-play-btn');
+        this.volumeBtn = this.container.querySelector('.live-card-volume');
+        this.loopBtn = this.container.querySelector('.live-card-loop');
+        this.progressBar = this.container.querySelector('.live-card-progress-bar');
+
+        this.volumeIcons = this.volumeBtn ? {
+            up: this.volumeBtn.querySelector('.ri-volume-up-line'),
+            mute: this.volumeBtn.querySelector('.ri-volume-mute-line')
+        } : null;
+
+        this.bindEvents();
+
+        if (this.video) {
+            this.video.muted = true;
+        }
+    }
+
+    bindEvents() {
+        if (this.playBtn) {
+            this.playBtn.addEventListener('click', () => this.togglePlay());
+        }
+
+        this.container.addEventListener('click', (e) => {
+            if (e.target.closest('.live-card-controls') || e.target.closest('.live-card-play-btn')) {
+                return;
+            }
+            this.togglePlay();
+        });
+
+        if (this.volumeBtn) {
+            this.volumeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleMute();
+            });
+        }
+
+        if (this.loopBtn) {
+            this.loopBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleLoop();
+            });
+        }
+
+        if (this.video) {
+            this.video.addEventListener('timeupdate', () => this.updateProgress());
+            this.video.addEventListener('ended', () => this.onVideoEnd());
+            this.video.addEventListener('play', () => this.onPlay());
+            this.video.addEventListener('pause', () => this.onPause());
+        }
+    }
+
+    togglePlay() {
+        if (!this.video) return;
+
+        if (this.isPlaying) {
+            this.video.pause();
+        } else {
+            this.video.currentTime = 0;
+            this.video.play().catch(e => console.error('播放失败:', e));
+        }
+    }
+
+    toggleMute() {
+        if (!this.video) return;
+
+        this.isMuted = !this.isMuted;
+        this.video.muted = this.isMuted;
+
+        if (this.volumeIcons) {
+            this.volumeIcons.up.style.display = this.isMuted ? 'none' : 'block';
+            this.volumeIcons.mute.style.display = this.isMuted ? 'block' : 'none';
+        }
+    }
+
+    toggleLoop() {
+        if (!this.video) return;
+
+        const isLoop = this.video.loop;
+        this.video.loop = !isLoop;
+
+        if (this.loopBtn) {
+            this.loopBtn.dataset.loop = (!isLoop).toString();
+            this.loopBtn.style.color = !isLoop ? 'var(--theme-color)' : 'white';
+        }
+    }
+
+    updateProgress() {
+        if (this.video && this.progressBar && this.video.duration) {
+            const percent = (this.video.currentTime / this.video.duration) * 100;
+            this.progressBar.style.width = percent + '%';
+        }
+    }
+
+    onVideoEnd() {
+        this.isPlaying = false;
+        this.container.classList.remove('playing');
+    }
+
+    onPlay() {
+        this.isPlaying = true;
+        this.container.classList.add('playing');
+    }
+
+    onPause() {
+        this.isPlaying = false;
+        this.container.classList.remove('playing');
+    }
+}
+
+function initLivePhotoCards() {
+    const cards = document.querySelectorAll('.live-card');
+    cards.forEach(card => {
+        if (!card.dataset.liveInit) {
+            new LivePhotoCard(card);
+            card.dataset.liveInit = 'true';
         }
     });
 }

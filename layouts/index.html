@@ -139,7 +139,7 @@
                 {{/* 时间、地点与操作按钮 */}}
                 <footer class="moment-footer">
                     <div class="footer-meta">
-                        <span class="moment-time">{{ .Date.Format "2006年1月2号" }}</span>
+                        <span class="moment-time" data-moment-time="{{ .Date.Format "2006-01-02T15:04:05-07:00" }}">{{ .Date.Format "2006年1月2号" }}</span>
                         {{ if and .Site.Params.showLocation .Params.location }}
                         <span class="moment-location">{{ .Params.location }}</span>
                         {{ end }}

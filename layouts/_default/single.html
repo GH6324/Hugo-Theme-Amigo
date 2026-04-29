@@ -52,17 +52,36 @@
 
                 {{ if $images }}
                 {{ $currentPage := . }}
+                {{ $len := len $images }}
                 <div class="article-gallery">
-                    {{ range $images }}
-                    {{ $imgSrc := . }}
-                    {{ if not (findRE "^(http|/)" $imgSrc) }}
-                        {{ with $currentPage.Resources.GetMatch $imgSrc }}
-                            {{ $imgSrc = .RelPermalink }}
-                        {{ end }}
-                    {{ end }}
-                    <figure class="article-image">
-                        <img src="{{ $imgSrc }}" alt="Image" loading="lazy">
-                    </figure>
+                    {{ if eq $len 1 }}
+                        {{/* 只有一张图时居中显示 */}}
+                        <div class="gallery-single">
+                            {{ range $images }}
+                                {{ $imgSrc := . }}
+                                {{ if not (findRE "^(http|/)" $imgSrc) }}
+                                    {{ with $currentPage.Resources.GetMatch $imgSrc }}
+                                        {{ $imgSrc = .RelPermalink }}
+                                    {{ end }}
+                                {{ end }}
+                                <img src="{{ $imgSrc }}" alt="Image" loading="lazy">
+                            {{ end }}
+                        </div>
+                    {{ else }}
+                        {{/* 多张图时的网格布局 */}}
+                        <div class="gallery-grid {{ if or (eq $len 2) (eq $len 4) }}cols-2{{ else }}cols-3{{ end }}">
+                            {{ range $images }}
+                                {{ $imgSrc := . }}
+                                {{ if not (findRE "^(http|/)" $imgSrc) }}
+                                    {{ with $currentPage.Resources.GetMatch $imgSrc }}
+                                        {{ $imgSrc = .RelPermalink }}
+                                    {{ end }}
+                                {{ end }}
+                                <div class="gallery-item">
+                                    <img src="{{ $imgSrc }}" alt="Image" loading="lazy">
+                                </div>
+                            {{ end }}
+                        </div>
                     {{ end }}
                 </div>
                 {{ end }}
@@ -84,6 +103,16 @@
 
         {{ if and $showComments (ne .Site.Params.commentMode "none") }}
         <div class="comments-container">
+            {{/* 文章详情页点赞按钮（仅Artalk模式） */}}
+            {{ if and (eq .Site.Params.commentMode "artalk") .Site.Params.artalkServer }}
+            <div class="single-like-area">
+                <button class="single-like-btn" id="single-like-btn" aria-label="点赞">
+                    <i class="ri-heart-line"></i>
+                    <span class="single-like-text">赞</span>
+                </button>
+            </div>
+            {{ end }}
+
             {{ if eq .Site.Params.commentMode "artalk" }}
                 {{/* Artalk 评论（朋友圈风格） */}}
                 {{ if .Site.Params.artalkServer }}
