@@ -1,90 +1,53 @@
-# Amigo - 极简朋友圈风格 Hugo 主题
+# Amigo - 极简朋友圈风格 Hugo 主题 / Minimalist WeChat Moments Hugo Theme
 
 [![Hugo](https://img.shields.io/badge/Hugo-%230076D1.svg?style=flat&logo=hugo&logoColor=white)](https://gohugo.io/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Amigo 是一款为 [Hugo](https://gohugo.io/) 打造的极简博客主题，其设计灵感来源于 **微信朋友圈 (WeChat Moments)**。它旨在提供一个私密、亲切且易于阅读的动态分享空间，支持 PJAX 无刷新加载和多种评论系统。
-
-[English Documentation](./README_EN.md)
+[中文](#中文) | [English](#english)
 
 ---
 
+# 中文
+
+Amigo 是一款为 [Hugo](https://gohugo.io/) 打造的极简博客主题，其设计灵感来源于 **微信朋友圈 (WeChat Moments)**。它旨在提供一个私密、亲切且易于阅读的动态分享空间，支持 PJAX 无刷新加载和多种评论系统。
+
 ## ✨ 主题特性
 
-- 📱 **朋友圈 UI**：高度还原微信朋友圈视觉体验，支持九宫格图片展示。
-- 🚀 **全站 PJAX**：丝滑的无刷新页面切换，提升浏览体验。
-- 🌓 **深色模式**：支持手动切换及系统跟随。
-- 💬 **多评论系统**：内置 **Artalk / Twikoo / Giscus** 三种评论方案。
-- 🖼️ **图片灯箱**：集成 ViewImage.js，点击图片即可放大浏览。
-- 🎨 **精美排版**：本地化中文字体优化（内置 *zql* 字体），阅读体验更佳。
-- 🛠️ **响应式设计**：完美适配手机、平板及桌面端。
-- 🔙 **智能页眉**：滚动自动切换背景及显示标题，集成返回顶部功能。
-- 🔍 **搜索功能**：支持本地搜索，无需依赖外部服务。
-- 📍 **地点信息**：可在文章元数据中添加地点信息，展示在文章底部。
+- 📱 **朋友圈 UI**：高度还原微信朋友圈视觉体验，支持九宫格图片展示
+- 🖼️ **智能多图布局**：自动适配 1/2/3/4/6/9 张图片排列，支持 Live Photo 混排
+- 🎵 **音乐播放器**：集成 Meting API，支持网易云音乐在线播放
+- 💬 **朋友圈评论**：Artalk 深度集成，支持点赞、弹幕、IP 归属地显示
+- ⏰ **人性化时间**：朋友圈风格时间显示（"刚刚"、"5分钟前"、"昨天"）
+- 🚀 **全站 PJAX**：丝滑的无刷新页面切换
+- 🌓 **深色模式**：支持手动切换及系统跟随
+- 🖼️ **图片灯箱**：集成 ViewImage.js，点击图片放大浏览
+- 🎨 **精美排版**：本地化中文字体优化，阅读体验更佳
+- 🛠️ **响应式设计**：完美适配手机、平板及桌面端
+- 🔍 **搜索功能**：支持本地搜索，无需外部服务
 
 ## 📸 预览站点
 
-您可以访问 [Amigo 主题演示站点](https://200181.xyz) 来查看 Amigo 主题的实际效果。
-
-该站点已配置好所有必要参数，您可以直接浏览和评论。
+访问 [Amigo 主题演示站点](https://200181.xyz) 查看实际效果。
 
 ## ⚙️ 前置条件
 
-在开始使用 Amigo 之前，建议先准备好以下环境与服务：
+- **Hugo**：建议使用 0.128.2+ 版本
+- **评论系统**（三选一）：
+  - [Artalk](https://artalk.js.org/)：推荐 2.8.7+，支持点赞、弹幕等完整功能
+  - [Twikoo](https://github.com/Mintimate/twikoo-eo)：无需服务器，支持 EdgeOne 部署
+  - [Giscus](https://giscus.app/)：基于 GitHub Discussions
 
-- **Hugo 版本**：建议使用 Hugo 0.128.2版本，以确保兼容性和最佳体验。
-- **Artalk**: 推荐使用2.8.7 版本，以支持朋友圈风格的点赞和评论功能
-  artalk 文档地址：https://artalk.js.org/zh-CN/docs/quick-start，
-  推荐使用官方提供的 `artalk/artalk:2.8.7` 镜像，确保与主题兼容，命令如下：
-  ```bash
-  docker run -d \
-      --name artalk \
-      -p 3378:23366 \
-      -v $(pwd)/data:/data \
-      -e "TZ=Asia/Shanghai" \
-      -e "ATK_LOCALE=zh-CN" \
-      -e "ATK_SITE_DEFAULT=你的站点名称" \
-      -e "ATK_SITE_URL=你的站点URL" \
-      artalk/artalk-go:2.8.7
-  ```
-- **Twikoo**: 推荐使用Twikoo EO版本，项目地址：https://github.com/Mintimate/twikoo-eo
-- **Giscus**: 推荐使用最新版本，文档地址：https://giscus.app/zh-CN
-- **浏览器**：建议使用现代浏览器（如 Chrome、Firefox、Edge）以获得最佳体验。
+### 评论方案选择建议
 
-### 评论方案选择和作者建议
-
-如果您有自己的服务器，**建议使用Artalk评论方案**
-
-**因为Twikoo程序没有提供较为完善的Api，固会有一些功能上的缺失，如点赞，弹幕等**
-
-如果您没有自己的服务器，**建议使用Twikoo评论方案**
-
-因为Twikoo的EO版本支持部署在Edgeone平台，在国内有较好的访问速度
-
-Twikoo EO版本，项目地址：https://github.com/Mintimate/twikoo-eo
-
-**Artalk：**
-- 已经部署好的 Artalk 服务端（支持 HTTPS 访问）。
-- 在 Artalk 后台创建好对应的「站点」，并记住 `site` 名称。
-
-**Twikoo：**
-- 任选一种部署方式：
-  - 腾讯云环境：已创建的环境 ID（`envId`）。
-  - Vercel / 自建服务：可公网访问的后端地址，例如 `https://twikoo.your-domain.com`。
-- 确保后端允许当前博客域名访问（CORS / 反向代理已配置好）。
-
-**Giscus：**
-- 一个启用 Discussions 功能的 GitHub 仓库。
-- 在 [giscus.app](https://giscus.app) 中生成完整配置，包括：
-  `repo`、`repoId`、`category`、`categoryId` 等字段。
-
-准备好以上条件后，再根据下文配置对应的参数即可正常使用评论与主题功能。
+| 场景 | 推荐方案 | 原因 |
+|------|----------|------|
+| 有自己的服务器 | Artalk | 功能最全：点赞、弹幕、IP 归属地 |
+| 没有服务器 | Twikoo EO | 免费部署到 EdgeOne，国内访问快 |
+| 技术博客 | Giscus | 与 GitHub 深度集成 |
 
 ## 🚀 快速开始
 
 ### 1. 安装
-
-在您的 Hugo 站点目录下执行：
 
 ```bash
 git clone https://github.com/zqlit/Hugo-Theme-Amigo.git themes/Amigo
@@ -92,156 +55,109 @@ git clone https://github.com/zqlit/Hugo-Theme-Amigo.git themes/Amigo
 
 ### 2. 配置
 
-您可以直接参考并复制主题目录下的 [hugo.toml](./hugo.toml) 文件到您的站点根目录。
-
-或者将以下基本配置添加到您的 `hugo.toml` 中：
+将主题目录下的 [hugo.toml](./hugo.toml) 复制到站点根目录，或添加以下基本配置：
 
 ```toml
 theme = "Amigo"
 
 [params]
-  # 基础信息
   username = "您的昵称"
   avatar = "/images/avatar.jpg"
   description = "一句话简介"
-  cover = "/images/header.png" # 首页封面（图片）
-  
-  # 顶部封面也可以使用视频（与 cover 二选一）
-  # headerMedia = "/images/header.png"
-  # headerMedia = "/videos/2792755201.mp4"
-  
-  # 评论模式: "artalk"、"twikoo"、"giscus" 或 "none"
+  cover = "/images/header.png"
+
+  # 评论模式: "artalk"、"twikoo"、"giscus"、"none"
   commentMode = "artalk"
 
-  # 字体设置: "ZQL", "PingFangQiaoMuTi", "AlimamaFangYuanTi"
-  fontFamily = "ZQL"
-
-  # --- 功能开关 ---
-  showTags = true         # 是否显示文章标签
-  showLocation = true     # 是否显示地点信息
-  enableSearch = true     # 是否开启搜索功能
-  enableDarkMode = true   # 是否显示深色模式切换按钮
-  enablePjax = true       # 是否开启 PJAX 无刷新加载
-  enableLightbox = true   # 是否开启图片灯箱
-
   # Artalk 配置
-  artalkServer  = "https://your-artalk-server.com"
-  artalkSite    = "您的站点名称"
-  enableDanmaku = true   # 底部弹幕：true 开启、false 关闭
-  
-  # Twikoo 配置（任选其一）
-  # 腾讯云环境：填 envId
-  # twikooEnvId = "your-twikoo-env-id"
-  # Vercel / 自建：填后端地址
-  # twikooEnvId = "https://twikoo.your-domain.com"
-  twikooLang = "zh-CN"
-
-  # Giscus 配置（在 https://giscus.app 生成）
-  giscusRepo             = ""
-  giscusRepoId           = ""
-  giscusCategory         = ""
-  giscusCategoryId       = ""
-  giscusMapping          = "pathname"
-  giscusStrict           = "0"
-  giscusReactionsEnabled = "1"
-  giscusEmitMetadata     = "0"
-  giscusInputPosition    = "bottom"
-  giscusLang             = "zh-CN"
-  giscusLoading          = "lazy"
-  
-  # 功能开关
-  enablePjax     = true  # 开启 PJAX 无刷新跳转
-  enableLightbox = true  # 开启图片灯箱放大查看
+  artalkServer = "https://your-artalk-server.com"
+  artalkSite = "您的站点名称"
+  enableDanmaku = true  # 首页弹幕
 ```
 
-### 3. 详细配置说明
+### 3. 完整配置项
 
-以下配置项可在主题自带的 [hugo.toml](./hugo.toml) 中找到完整示例：
+<details>
+<summary>点击展开完整配置</summary>
 
 #### 站点基础信息
 
-- `username`：显示在头像右侧的昵称，默认也用作文章作者。
-- `avatar`：头像图片地址，支持本地路径和外链。
-- `description`：个人简介，显示在头像下方。
-- `cover`：首页顶部封面图片。
-- `headerMedia`：首页顶部媒体资源，可为图片或视频（与 `cover` 二选一）。
-- `favicon`：浏览器标签页图标。
-- `footerText`：页面底部文本，支持 HTML。
-- `icp`：ICP备案号（可选）。
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `username` | 显示昵称 | `"Vaica"` |
+| `avatar` | 头像地址 | `"/images/avatar.jpg"` |
+| `description` | 个人简介 | `"记录生活"` |
+| `cover` | 封面图片 | `"/images/cover.jpg"` |
+| `headerMedia` | 封面媒体（图片或视频） | `"/videos/bg.mp4"` |
+| `favicon` | 浏览器图标 | `"/favicon.ico"` |
+| `icp` | IICP 备案号 | `"京ICP备xxxxxxx号"` |
 
 #### 评论系统
 
-通过 `commentMode` 切换评论系统：
+```toml
+commentMode = "artalk"  # "artalk" / "twikoo" / "giscus" / "none"
 
-- `commentMode = "artalk"`：启用 Artalk 评论。
-- `commentMode = "twikoo"`：启用 Twikoo 评论。
-- `commentMode = "giscus"`：启用 Giscus 评论。
-- `commentMode = "none"`：关闭评论。
+# Artalk
+artalkServer = "https://artalk.example.com"
+artalkSite = "我的博客"
+enableDanmaku = true
 
-> 注意：如果同时配置了 Artalk 与 Giscus，优先使用 Artalk；Twikoo 与它们互斥，由 `commentMode` 决定。
+# Twikoo
+twikooEnvId = "your-env-id"
+twikooLang = "zh-CN"
 
-**Artalk 相关：**
+# Giscus
+giscusRepo = "user/repo"
+giscusRepoId = "R_xxxxx"
+giscusCategory = "Announcements"
+giscusCategoryId = "DIC_xxxxx"
+```
 
-- `artalkServer`：Artalk 后端地址，例如 `https://artalk.your-domain.com`。
-- `artalkSite`：Artalk 中「站点名称」，用于区分多站点。
-- `enableDanmaku`：是否开启底部弹幕（仅首页使用 Artalk 时有效）。
+#### 功能开关
 
-**Twikoo 相关：**
+```toml
+showTags = true          # 显示文章标签
+showLocation = true      # 显示地点信息
+enableSearch = true      # 本地搜索
+enableDarkMode = true    # 深色模式切换
+enablePjax = true        # PJAX 无刷新加载
+enableLightbox = true    # 图片灯箱
+```
 
-- `twikooEnvId`：
-  - 腾讯云：填写环境 ID，例如 `yourid-xxxxxx`。
-  - Vercel / 自建：填写后端地址，例如 `https://twikoo.your-domain.com`。
-- `twikooLang`：Twikoo 语言，如 `zh-CN`。
+#### 字体
 
-**Giscus 相关：**
-
-所有字段均可在 [Giscus 配置页面](https://giscus.app) 生成：
-
-- `giscusRepo` / `giscusRepoId`
-- `giscusCategory` / `giscusCategoryId`
-- `giscusMapping`：评论与页面映射方式，一般使用 `pathname`。
-- `giscusLang`：界面语言。
-
-#### 字体与功能
-
-- `fontFamily`：`"ZQL"`, `"PingFangQiaoMuTi"`, `"AlimamaFangYuanTi"` 三选一。
-- `enablePjax`：是否开启 PJAX 无刷新跳转。
-- `enableLightbox`：是否开启图片灯箱。
+```toml
+fontFamily = "ZQL"  # "ZQL" / "PingFangQiaoMuTi" / "AlimamaFangYuanTi"
+```
 
 #### 导航菜单
-
-导航采用 Hugo 标准菜单配置，在根 `hugo.toml` 中配置：
 
 ```toml
 [[menu.main]]
   name = "首页"
-  url  = "/"
+  url = "/"
   weight = 1
 
 [[menu.main]]
   name = "关于"
-  url  = "/about.html"
+  url = "/about.html"
   weight = 2
-
-[[menu.main]]
-  name = "友链"
-  url  = "/friends.html"
-  weight = 3
 ```
+
+</details>
+
 ## 📝 使用指南
 
 ### 目录结构
 
 ```text
 content/
-├── posts/           # 朋友圈动态 (文章)
+├── posts/           # 朋友圈动态
 ├── about.md         # 关于页面
-└── friends.md       # 友链页面 (layout: "friends")
+└── friends.md       # 友链页面
 ```
 
-### 撰写动态 (Posts)
-
-在 `content/posts/` 目录下创建目录（Page Bundles）或直接创建 `.md` 文件。为了更好地管理图片，建议为每篇动态创建一个文件夹：
+### 撰写动态
 
 ```markdown
 ---
@@ -249,45 +165,132 @@ title: "周末去爬山"
 date: 2026-02-20
 author: "Vaica"
 location: "武汉·东湖"
+tags: ["生活", "摄影"]
 ---
 
-今天天气真好，去公园散步，看到了好多花开了。🌸 
+今天天气真好，去公园散步。🌸
 
-![春日1](photo1.jpg)
-![春日2](photo2.jpg)
-
-#生活 #春天 #摄影
+![photo1.jpg](photo1.jpg)
+![photo2.jpg](photo2.jpg)
 ```
 
-### 常用 Shortcodes
+### 多图布局
 
-Amigo 内置了一些好用的 Shortcodes，方便你在文章中插入特殊内容。
+主题会自动根据图片数量选择最佳布局：
 
-#### 实况照片 (Live Photo)
+| 图片数量 | 布局 |
+|----------|------|
+| 1 张 | 居中展示 |
+| 2 张 | 左右并排 |
+| 3 张 | 三列网格 |
+| 4 张 | 2×2 网格 |
+| 5-6 张 | 3×2 网格 |
+| 7-9 张 | 3×3 九宫格 |
 
-想要在博客里展示像 iPhone 实况照片一样的效果？用这个：
+### Shortcodes
+
+#### 音乐卡片 (music-card)
+
+卡片式音乐播放器，支持本地音频和 Meting API：
+
+```markdown
+{{< music-card
+    src="https://example.com/song.mp3"
+    cover="/images/cover.jpg"
+    name="歌曲名"
+    artist="艺术家"
+    accent="#d43c33"
+>}}
+```
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `src` | 音频地址（支持 Meting API URL 或直链） | - |
+| `cover` | 封面图片 | `/images/default-cover.jpg` |
+| `name` | 歌曲名称 | `未知歌曲` |
+| `artist` | 艺术家 | `未知艺术家` |
+| `accent` | 主题色 | `#d43c33` |
+
+使用 Meting API 时，`src` 填入 API 地址即可自动解析：
+```markdown
+{{< music-card
+    src="https://open.motues.top/music?server=netease&type=song&id=182402"
+    name="歌曲名"
+    artist="艺术家"
+>}}
+```
+
+#### 音乐播放器 (music)
+
+基础版音乐播放器，带进度条和上/下一首控制：
+
+```markdown
+{{< music
+    src="https://example.com/song.mp3"
+    cover="/images/cover.jpg"
+    name="歌曲名"
+    artist="艺术家"
+>}}
+```
+
+#### 实况照片 (motion-photo)
+
+类似 iPhone 实况照片效果，鼠标悬停播放视频：
+
+```markdown
+{{< motion-photo
+    image="cover.jpg"
+    video="video.mp4"
+    alt="描述文字"
+    ratio="3/4"
+    delay="500"
+>}}
+```
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `image` | 封面图片 | - |
+| `video` | 视频文件（不填则自动从图片路径推导 .mp4） | - |
+| `alt` | 描述文字 | - |
+| `ratio` | 宽高比 | `3/4` |
+| `delay` | 悬停触发延迟（毫秒） | `500` |
+
+#### 实况照片 - 简洁版 (livephoto)
+
+Apple 风格实况照片，带实况/静音按钮：
 
 ```markdown
 {{< livephoto image="cover.jpg" video="video.mp4" >}}
+{{< livephoto src="photo.avif" >}}
 ```
 
-- `image`: 封面图（静止时显示的图片）
-- `video`: 视频文件（动起来的内容）
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `image` / `src` | 封面图片 | - |
+| `video` | 视频文件（不填则自动推导） | - |
+| `alt` | 描述文字 | `Live Photo` |
+| `style` | 自定义 CSS | - |
 
-> 💡 小技巧：如果是同名的 `.jpg` 和 `.mp4` 文件（例如 `my-cat.jpg` 和 `my-cat.mp4`），你可以只写 `image="my-cat.jpg"`，主题会自动去找对应的视频文件。
+#### 实况照片 - 卡片版 (livephoto-card)
 
----
+带播放控制、音量调节和进度条的卡片式实况照片：
 
-### 评论开关逻辑
+```markdown
+{{< livephoto-card
+    src="cover.jpg"
+    video="video.mp4"
+    caption="图片说明"
+>}}
+```
 
-- **文章 (Posts)**：默认开启评论。设置 `comments: false` 可关闭。
-- **静态页面 (Pages)**：默认关闭评论。设置 `comments: true` 可开启（如留言板）。
+### 评论开关
 
-> 评论系统的实际类型由全局 `commentMode` 决定，支持 Artalk / Twikoo / Giscus。
+- **Posts**：默认开启，`comments: false` 关闭
+- **Pages**：默认关闭，`comments: true` 开启
 
 ### 友链配置
 
-在站点根目录创建 `data/friends.yml`：
+创建 `data/friends.yml`：
 
 ```yaml
 - name: "Vaica"
@@ -296,25 +299,19 @@ Amigo 内置了一些好用的 Shortcodes，方便你在文章中插入特殊内
   description: "开发者"
 ```
 
-然后在 `content/friends.md` 中设置：
-
-```markdown
----
-title: "友链"
-layout: "friends"
----
-```
+在 `content/friends.md` 中设置 `layout: "friends"`
 
 ## 🛠️ 技术栈
 
 - **SSG**: [Hugo](https://gohugo.io/)
 - **Icons**: [Remix Icon](https://remixicon.com/)
-- **Comments**: [Artalk](https://artalk.js.org/) / [Giscus](https://giscus.app/)
-- **JS Components**: ViewImage.js, PJAX.js
+- **Comments**: [Artalk](https://artalk.js.org/) / [Twikoo](https://twikoo.js.org/) / [Giscus](https://giscus.app/)
+- **Music**: [Meting API](https://github.com/metowolf/MetingJS)
+- **JS**: ViewImage.js, PJAX.js
 
-## ☕ 请我喝杯咖啡
+## ☕ 赞赏支持
 
-如果你觉得这个主题还不错，欢迎请作者喝杯咖啡，支持后续的开发维护！
+如果你觉得这个主题还不错，欢迎请作者喝杯咖啡！
 
 <table>
   <tr>
@@ -333,8 +330,264 @@ layout: "friends"
 
 本项目采用 [MIT License](LICENSE) 协议。
 
+感谢使用 **Amigo**！如果喜欢，欢迎点个 **Star** ⭐️
+
 ---
 
-感谢使用 **Amigo**！如果您喜欢这个项目，欢迎点一个 **Star** ⭐️。
+# English
 
+Amigo is a minimalist [Hugo](https://gohugo.io/) blog theme inspired by **WeChat Moments**. It provides an intimate, easy-to-read space for sharing updates, with PJAX navigation and multi-comment system support.
 
+## ✨ Features
+
+- 📱 **Moments UI**: Faithful recreation of WeChat Moments with grid image layout
+- 🖼️ **Smart Grid Layout**: Auto-adapts to 1/2/3/4/6/9 images, supports Live Photo mixing
+- 🎵 **Music Player**: Meting API integration for online music streaming
+- 💬 **Moments Comments**: Deep Artalk integration with likes, danmaku, IP geolocation
+- ⏰ **Human-friendly Time**: WeChat-style display ("just now", "5 min ago", "yesterday")
+- 🚀 **PJAX Navigation**: Smooth page transitions without full reloads
+- 🌓 **Dark Mode**: Manual toggle with system preference detection
+- 🖼️ **Lightbox**: ViewImage.js integration for image zoom
+- 🎨 **Typography**: Optimized Chinese font rendering
+- 🛠️ **Responsive**: Perfect on mobile, tablet, and desktop
+- 🔍 **Search**: Local search, no external service required
+
+## 📸 Demo
+
+Visit the [Amigo Demo Site](https://200181.xyz) to see it in action.
+
+## ⚙️ Prerequisites
+
+- **Hugo**: Version 0.128.2+ recommended
+- **Comment System** (choose one):
+  - [Artalk](https://artalk.js.org/): Full features (likes, danmaku, IP geolocation)
+  - [Twikoo](https://github.com/Mintimate/twikoo-eo): Serverless, deploy on EdgeOne
+  - [Giscus](https://giscus.app/): GitHub Discussions based
+
+## 🚀 Quick Start
+
+### 1. Install
+
+```bash
+git clone https://github.com/zqlit/Hugo-Theme-Amigo.git themes/Amigo
+```
+
+### 2. Configure
+
+Copy [hugo.toml](./hugo.toml) from the theme directory to your site root, or add:
+
+```toml
+theme = "Amigo"
+
+[params]
+  username = "Your Name"
+  avatar = "/images/avatar.jpg"
+  description = "A short bio"
+  cover = "/images/cover.jpg"
+  commentMode = "artalk"
+  artalkServer = "https://your-artalk-server.com"
+  artalkSite = "My Blog"
+```
+
+### 3. Configuration Reference
+
+<details>
+<summary>Click to expand full configuration</summary>
+
+#### Site Info
+
+| Param | Description | Example |
+|-------|-------------|---------|
+| `username` | Display name | `"Vaica"` |
+| `avatar` | Avatar URL | `"/images/avatar.jpg"` |
+| `description` | Short bio | `"Life recorder"` |
+| `cover` | Header image | `"/images/cover.jpg"` |
+| `headerMedia` | Header media (image or video) | `"/videos/bg.mp4"` |
+| `icp` | ICP registration number | Optional |
+
+#### Comment System
+
+```toml
+commentMode = "artalk"  # "artalk" / "twikoo" / "giscus" / "none"
+
+# Artalk
+artalkServer = "https://artalk.example.com"
+artalkSite = "My Blog"
+enableDanmaku = true
+
+# Twikoo
+twikooEnvId = "your-env-id"
+
+# Giscus
+giscusRepo = "user/repo"
+giscusRepoId = "R_xxxxx"
+giscusCategory = "Announcements"
+giscusCategoryId = "DIC_xxxxx"
+```
+
+#### Feature Toggles
+
+```toml
+showTags = true
+showLocation = true
+enableSearch = true
+enableDarkMode = true
+enablePjax = true
+enableLightbox = true
+```
+
+#### Navigation Menu
+
+```toml
+[[menu.main]]
+  name = "Home"
+  url = "/"
+  weight = 1
+
+[[menu.main]]
+  name = "About"
+  url = "/about.html"
+  weight = 2
+```
+
+</details>
+
+## 📝 Usage Guide
+
+### Writing Posts
+
+```markdown
+---
+title: "Weekend Hiking"
+date: 2026-02-20
+author: "Vaica"
+location: "Wuhan, China"
+tags: ["life", "photography"]
+---
+
+Beautiful weather today! 🌸
+
+![photo1.jpg](photo1.jpg)
+![photo2.jpg](photo2.jpg)
+```
+
+### Image Grid Layout
+
+The theme automatically selects the best layout based on image count:
+
+| Count | Layout |
+|-------|--------|
+| 1 | Centered |
+| 2 | Side by side |
+| 3 | 3-column grid |
+| 4 | 2×2 grid |
+| 5-6 | 3×2 grid |
+| 7-9 | 3×3 grid |
+
+### Shortcodes
+
+#### Music Card (music-card)
+
+Card-style music player with Meting API support:
+
+```markdown
+{{< music-card
+    src="https://example.com/song.mp3"
+    cover="/images/cover.jpg"
+    name="Song Name"
+    artist="Artist"
+    accent="#d43c33"
+>}}
+```
+
+| Param | Description | Default |
+|-------|-------------|---------|
+| `src` | Audio URL (Meting API or direct link) | - |
+| `cover` | Cover image | `/images/default-cover.jpg` |
+| `name` | Song name | `Unknown Song` |
+| `artist` | Artist name | `Unknown Artist` |
+| `accent` | Theme color | `#d43c33` |
+
+#### Music Player (music)
+
+Basic music player with progress bar and prev/next controls:
+
+```markdown
+{{< music
+    src="https://example.com/song.mp3"
+    cover="/images/cover.jpg"
+    name="Song Name"
+    artist="Artist"
+>}}
+```
+
+#### Motion Photo (motion-photo)
+
+iPhone-style live photo effect, plays video on hover:
+
+```markdown
+{{< motion-photo
+    image="cover.jpg"
+    video="video.mp4"
+    alt="Description"
+    ratio="3/4"
+    delay="500"
+>}}
+```
+
+| Param | Description | Default |
+|-------|-------------|---------|
+| `image` | Cover image | - |
+| `video` | Video file (auto-derived from image path if omitted) | - |
+| `alt` | Alt text | - |
+| `ratio` | Aspect ratio | `3/4` |
+| `delay` | Hover trigger delay (ms) | `500` |
+
+#### Live Photo (livephoto)
+
+Apple-style live photo with live/mute buttons:
+
+```markdown
+{{< livephoto image="cover.jpg" video="video.mp4" >}}
+```
+
+#### Live Photo Card (livephoto-card)
+
+Card-style live photo with playback controls, volume, and progress bar:
+
+```markdown
+{{< livephoto-card
+    src="cover.jpg"
+    video="video.mp4"
+    caption="Photo description"
+>}}
+```
+
+### Friends Page
+
+Create `data/friends.yml`:
+
+```yaml
+- name: "Vaica"
+  url: "https://usj.cc"
+  avatar: "https://github.com/zqlit"
+  description: "Developer"
+```
+
+Set `layout: "friends"` in `content/friends.md`.
+
+## 🛠️ Tech Stack
+
+- **SSG**: [Hugo](https://gohugo.io/)
+- **Icons**: [Remix Icon](https://remixicon.com/)
+- **Comments**: [Artalk](https://artalk.js.org/) / [Twikoo](https://twikoo.js.org/) / [Giscus](https://giscus.app/)
+- **Music**: [Meting API](https://github.com/metowolf/MetingJS)
+- **JS**: ViewImage.js, PJAX.js
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+Made with ❤️ by [Vaica](https://github.com/zqlit) | Star this repo if you like it! ⭐️
