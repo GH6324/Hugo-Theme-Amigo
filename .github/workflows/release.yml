@@ -1,0 +1,88 @@
+name: 🚀 Hugo Theme Ultimate Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（留空则自动生成）"
+        required: false
+        default: ""
+      body:
+        description: "发布说明（可选）"
+        required: false
+        default: ""
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # =========================
+      # 自动生成版本号
+      # =========================
+      - name: Generate Version
+        id: version
+        run: |
+          if [ -z "${{ github.event.inputs.version }}" ]; then
+            VERSION="v$(date +%Y.%m.%d.%H%M)"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      # =========================
+      # 生成 changelog
+      # =========================
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          echo "## 更新内容" > CHANGELOG.md
+          git log -10 --pretty=format:"- %s" >> CHANGELOG.md
+
+      # =========================
+      # 打包 release.zip（用户版）
+      # =========================
+      - name: Build Release ZIP
+        run: |
+          zip -r release.zip . \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "node_modules/*"
+
+      # =========================
+      # 打包 source.zip（开发版）
+      # =========================
+      - name: Build Source ZIP
+        run: |
+          zip -r source.zip . \
+            -x "node_modules/*"
+
+      # =========================
+      # 创建 GitHub Release
+      # =========================
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: 🚀 Hugo Theme ${{ steps.version.outputs.VERSION }}
+          body: |
+            ${{ github.event.inputs.body }}
+
+            ---
+            ## 📦 自动生成 Changelog
+            ${{ steps.changelog.outputs.content }}
+
+            ---
+            ⚡ 自动构建发布
+            📌 Hugo Theme Amigo
+          files: |
+            release.zip
+            source.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
