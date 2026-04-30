@@ -1332,7 +1332,7 @@ body:has(.view-image) .single-header {
     margin-top: 10px;
     padding: 0;
     background: var(--bg-card, #fff);
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-main);
     border-radius: 5px;
     overflow: hidden;
     text-decoration: none;
@@ -1341,7 +1341,7 @@ body:has(.view-image) .single-header {
 }
 
 .long-card-link:hover {
-    border-color: var(--accent-color, #10b981);
+    border-color: var(--theme-color);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
@@ -3509,20 +3509,20 @@ body {
 
 /* 深色模式适配 */
 [data-theme="dark"] .amigo-voice-bubble {
-    background: #38a860;
-    color: #eee;
+    background: #3a3a3a;
+    color: #e0e0e0;
 }
 
 [data-theme="dark"] .amigo-voice-bubble::before {
-    border-right-color: #38a860;
+    border-right-color: #3a3a3a;
 }
 
 [data-theme="dark"] .amigo-voice-bubble.is-playing {
-    background: #32965a;
+    background: #444;
 }
 
 [data-theme="dark"] .amigo-voice-bubble.is-playing::before {
-    border-right-color: #32965a;
+    border-right-color: #444;
 }
 
 [data-theme="dark"] .amigo-voice-icon span {
