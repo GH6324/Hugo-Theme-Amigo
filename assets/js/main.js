@@ -1,5 +1,60 @@
 let artalkInstances = [];
 
+/* ==========================================================================
+   全局音频管理器 - 保证 PJAX 切换页面时音乐不中断
+   ========================================================================== */
+const AudioManager = {
+    _audio: null,
+    _playing: false,
+    _src: null,
+    _currentTime: 0,
+
+    get audio() {
+        if (!this._audio) {
+            this._audio = new Audio();
+            this._audio.preload = 'metadata';
+            this._audio.style.display = 'none';
+            document.body.appendChild(this._audio);
+            this._audio.addEventListener('play', () => { this._playing = true; });
+            this._audio.addEventListener('pause', () => { this._playing = false; });
+            this._audio.addEventListener('timeupdate', () => {
+                this._currentTime = this._audio.currentTime;
+            });
+        }
+        return this._audio;
+    },
+
+    get isPlaying() { return this._playing; },
+    get src() { return this._src; },
+
+    load(src) {
+        this._src = src;
+        this.audio.src = src;
+        this.audio.load();
+    },
+
+    play() {
+        this.audio.play().catch(() => {});
+    },
+
+    pause() {
+        this.audio.pause();
+    },
+
+    // 将全局 audio 关联到播放器 UI（绑定 UI 事件）
+    attach(player) {
+        const a = this.audio;
+        // 移除旧的 UI 事件监听（通过命名空间标记）
+        a._player = player;
+    },
+
+    detach() {
+        if (this._audio) {
+            this._audio._player = null;
+        }
+    }
+};
+
 // 点赞数缓存管理
 const LikesCache = {
     prefix: 'likes_',
@@ -57,6 +112,8 @@ document.addEventListener("DOMContentLoaded", function() {
     initLivePhotoCards();
     initMusicCardPlayers();
     initMotionPhotos();
+    initVideoPlayers();
+    initVoiceMessages();
 });
 
 // 页面跳转前，先把 Artalk 评论实例给销毁掉，省得占内存
@@ -86,10 +143,17 @@ document.addEventListener("pjax:complete", function() {
     initArchiveFilter();
     initHomeSearch();
     initDanmaku();
-    initMusicPlayers();
     initLivePhotoCards();
-    initMusicCardPlayers();
     initMotionPhotos();
+    initVideoPlayers();
+    initVoiceMessages();
+    // 音乐播放器：如果正在播放则只关联 UI，不重新初始化
+    if (AudioManager.isPlaying) {
+        attachPlayingMusicPlayer();
+    } else {
+        initMusicPlayers();
+        initMusicCardPlayers();
+    }
 });
 
 function initMenu() {
@@ -1754,13 +1818,14 @@ function initMoments() {
                 textWrapper.insertAdjacentElement('afterend', liveWrap);
             }
 
-            // 检测实况照片（motion-photo）和音乐卡片，有的话取消折叠
+            // 检测实况照片、音乐卡片和视频，有的话取消折叠
             const motionPhotos = textDiv.querySelectorAll('.amigo-motion-photo-mark');
             const musicCards = textDiv.querySelectorAll('.amigo-music-card-mark');
+            const videoContainers = textDiv.querySelectorAll('.amigo-video-container');
 
             // 清理旧状态
-            textDiv.classList.remove('has-motion-photos', 'has-music-card');
-            textWrapper.classList.remove('has-motion-photos', 'has-music-card');
+            textDiv.classList.remove('has-motion-photos', 'has-music-card', 'has-video', 'has-voice');
+            textWrapper.classList.remove('has-motion-photos', 'has-music-card', 'has-video', 'has-voice');
             textDiv.removeAttribute('data-motion-count');
 
             if (motionPhotos.length) {
@@ -1781,13 +1846,24 @@ function initMoments() {
                 textWrapper.classList.add('has-music-card');
             }
 
+            if (videoContainers.length) {
+                textDiv.classList.add('has-video');
+                textWrapper.classList.add('has-video');
+            }
+
+            const voiceMsgs = textDiv.querySelectorAll('.amigo-voice-bubble');
+            if (voiceMsgs.length) {
+                textDiv.classList.add('has-voice');
+                textWrapper.classList.add('has-voice');
+            }
+
             // Reset state for re-init
             textDiv.classList.add('is-collapsed');
             toggleBtn.style.display = 'none';
             toggleBtn.innerText = '全文';
 
-            // 如果有实况照片或音乐卡片，不需要折叠
-            const hasSpecialContent = motionPhotos.length > 0 || musicCards.length > 0;
+            // 如果有实况照片、音乐卡片、视频或语音，不需要折叠
+            const hasSpecialContent = motionPhotos.length > 0 || musicCards.length > 0 || videoContainers.length > 0 || voiceMsgs.length > 0;
 
             // Check overflow after a small delay to ensure rendering
             setTimeout(() => {
@@ -1857,7 +1933,7 @@ function initMoments() {
    ========================================================================== */
 
 class MusicCardPlayer {
-    constructor(container) {
+    constructor(container, attachOnly) {
         this.container = container;
         this.isPlaying = false;
         this.isSeeking = false;
@@ -1867,7 +1943,7 @@ class MusicCardPlayer {
         this.artist = container.dataset.artist;
         this.isApi = container.dataset.isApi === 'true';
 
-        this.audio = container.querySelector('.amigo-music-card__audio');
+        this.audio = AudioManager.audio;
         this.playBtn = container.querySelector('.amigo-music-card__play');
         this.seekInput = container.querySelector('.amigo-music-card__seek');
         this.seekThumb = container.querySelector('.amigo-music-card__seek-thumb');
@@ -1875,21 +1951,29 @@ class MusicCardPlayer {
         this.timeCurrent = container.querySelector('.amigo-music-card__time--current');
         this.timeDuration = container.querySelector('.amigo-music-card__time--duration');
 
-        if (this.isApi && this.src) {
-            this.fetchAndSetAudioUrl(this.src);
-        } else if (this.audio && this.src) {
-            this.audio.src = this.src;
+        if (!attachOnly) {
+            if (this.isApi && this.src) {
+                this.fetchAndSetAudioUrl(this.src);
+            } else if (this.src) {
+                AudioManager.load(this.src);
+            }
         }
 
         this.bindEvents();
+        AudioManager.attach(this);
+
+        // 如果正在播放，同步 UI
+        if (AudioManager.isPlaying) {
+            this.syncUI();
+        }
     }
 
     async fetchAndSetAudioUrl(apiUrl) {
         try {
             const response = await fetch(apiUrl);
             const data = await response.json();
-            if (data.url && this.audio) {
-                this.audio.src = data.url;
+            if (data.url) {
+                AudioManager.load(data.url);
             }
         } catch (e) {
             console.error('获取音频URL失败:', e);
@@ -1904,7 +1988,6 @@ class MusicCardPlayer {
             });
         }
 
-        // 点击封面区域也可以播放
         const art = this.container.querySelector('.amigo-music-card__art');
         if (art) {
             art.addEventListener('click', () => this.togglePlay());
@@ -1923,21 +2006,29 @@ class MusicCardPlayer {
             });
         }
 
-        if (this.audio) {
-            this.audio.addEventListener('timeupdate', () => this.onTimeUpdate());
-            this.audio.addEventListener('loadedmetadata', () => this.onLoadedMetadata());
-            this.audio.addEventListener('ended', () => this.onEnded());
-            this.audio.addEventListener('play', () => this.onPlay());
-            this.audio.addEventListener('pause', () => this.onPause());
+        this.audio.addEventListener('timeupdate', () => this.onTimeUpdate());
+        this.audio.addEventListener('loadedmetadata', () => this.onLoadedMetadata());
+        this.audio.addEventListener('ended', () => this.onEnded());
+        this.audio.addEventListener('play', () => this.onPlay());
+        this.audio.addEventListener('pause', () => this.onPause());
+    }
+
+    syncUI() {
+        this.isPlaying = true;
+        this.container.setAttribute('data-playing', 'true');
+        if (this.playBtn) this.playBtn.setAttribute('aria-pressed', 'true');
+        if (this.audio.duration) {
+            this.onLoadedMetadata();
+            this.onTimeUpdate();
         }
     }
 
     togglePlay() {
         if (!this.audio) return;
         if (this.isPlaying) {
-            this.audio.pause();
+            AudioManager.pause();
         } else {
-            this.audio.play().catch(e => console.error('播放失败:', e));
+            AudioManager.play();
         }
     }
 
@@ -1957,7 +2048,7 @@ class MusicCardPlayer {
         this.isPlaying = false;
         this.container.setAttribute('data-playing', 'false');
         if (this.playBtn) this.playBtn.setAttribute('aria-pressed', 'false');
-        if (this.audio) this.audio.currentTime = 0;
+        this.audio.currentTime = 0;
         this.updateSeekVisual(0);
     }
 
@@ -2000,6 +2091,170 @@ function initMusicCardPlayers() {
             new MusicCardPlayer(card);
             card.dataset.cardInit = 'true';
         }
+    });
+}
+
+// PJAX 切换后，将正在播放的音乐关联到新页面的播放器 UI
+function attachPlayingMusicPlayer() {
+    // 尝试关联 music-card
+    const card = document.querySelector('.amigo-music-card[data-amigo-music-card]');
+    if (card) {
+        new MusicCardPlayer(card, true);
+        card.dataset.cardInit = 'true';
+        return;
+    }
+    // 尝试关联 music-player
+    const player = document.querySelector('.music-player');
+    if (player) {
+        new MusicPlayer(player, true);
+        player.dataset.musicInit = 'true';
+    }
+}
+
+/* ==========================================================================
+   视频播放器功能 (video shortcode)
+   ========================================================================== */
+
+function initVideoPlayers() {
+    document.querySelectorAll('.amigo-video-container:not(.amigo-video-bilibili)').forEach(container => {
+        if (container.dataset.videoInit) return;
+        container.dataset.videoInit = 'true';
+
+        const video = container.querySelector('.amigo-video');
+        const playBtn = container.querySelector('.amigo-video-play-btn');
+        const muteBtn = container.querySelector('.amigo-video-mute-btn');
+        const fullscreenBtn = container.querySelector('.amigo-video-fullscreen-btn');
+        const progressBar = container.querySelector('.amigo-video-progress');
+        const progressFill = container.querySelector('.amigo-video-progress-bar');
+        const timeEl = container.querySelector('.amigo-video-time');
+
+        if (!video) return;
+
+        const formatTime = (s) => {
+            if (!s || isNaN(s)) return '0:00';
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return m + ':' + (sec < 10 ? '0' : '') + sec;
+        };
+
+        const updatePlayIcon = () => {
+            const icon = playBtn.querySelector('i');
+            icon.className = video.paused ? 'ri-play-fill' : 'ri-pause-fill';
+        };
+
+        // 点击容器播放/暂停
+        container.addEventListener('click', (e) => {
+            if (e.target.closest('.amigo-video-controls')) return;
+            video.paused ? video.play() : video.pause();
+        });
+
+        // 播放按钮
+        playBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            video.paused ? video.play() : video.pause();
+        });
+
+        video.addEventListener('play', updatePlayIcon);
+        video.addEventListener('pause', updatePlayIcon);
+        video.addEventListener('ended', () => {
+            updatePlayIcon();
+            progressFill.style.width = '0';
+        });
+
+        // 进度条
+        video.addEventListener('timeupdate', () => {
+            if (!video.duration) return;
+            const pct = (video.currentTime / video.duration) * 100;
+            progressFill.style.width = pct + '%';
+            timeEl.textContent = formatTime(video.currentTime);
+        });
+
+        progressBar.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const rect = progressBar.getBoundingClientRect();
+            const pct = (e.clientX - rect.left) / rect.width;
+            video.currentTime = pct * video.duration;
+        });
+
+        // 静音
+        muteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            video.muted = !video.muted;
+            muteBtn.querySelector('.ri-volume-up-line').style.display = video.muted ? 'none' : '';
+            muteBtn.querySelector('.ri-volume-mute-line').style.display = video.muted ? '' : 'none';
+        });
+
+        // 全屏
+        fullscreenBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                container.requestFullscreen().catch(() => {});
+            }
+        });
+    });
+}
+
+/* ==========================================================================
+   微信语音消息功能 (voice shortcode)
+   ========================================================================== */
+
+function initVoiceMessages() {
+    document.querySelectorAll('.amigo-voice-bubble').forEach(el => {
+        if (el.dataset.voiceInit) return;
+        el.dataset.voiceInit = 'true';
+
+        const src = el.dataset.src;
+        if (!src) return;
+
+        const durationEl = el.querySelector('.amigo-voice-duration');
+        let audio = null;
+        let isPlaying = false;
+
+        // 立即加载音频获取真实时长
+        const probe = new Audio();
+        probe.preload = 'metadata';
+        probe.addEventListener('loadedmetadata', () => {
+            if (probe.duration && !isNaN(probe.duration)) {
+                durationEl.textContent = Math.round(probe.duration) + '″';
+            }
+        });
+        probe.src = src;
+
+        const stop = () => {
+            if (audio) {
+                audio.pause();
+                audio.currentTime = 0;
+            }
+            isPlaying = false;
+            el.classList.remove('is-playing');
+        };
+
+        el.addEventListener('click', () => {
+            if (!audio) {
+                audio = new Audio(src);
+                audio.addEventListener('ended', stop);
+            }
+
+            if (isPlaying) {
+                stop();
+            } else {
+                document.querySelectorAll('.amigo-voice-bubble.is-playing').forEach(other => {
+                    if (other !== el) {
+                        other.classList.remove('is-playing');
+                        if (other._voiceAudio) {
+                            other._voiceAudio.pause();
+                            other._voiceAudio.currentTime = 0;
+                        }
+                    }
+                });
+                audio.play().catch(() => {});
+                isPlaying = true;
+                el.classList.add('is-playing');
+                el._voiceAudio = audio;
+            }
+        });
     });
 }
 
@@ -2140,12 +2395,13 @@ function initMotionPhotos() {
    ========================================================================== */
 
 class MusicPlayer {
-    constructor(container) {
+    constructor(container, attachOnly) {
         this.container = container;
-        this.audio = new Audio();
+        this.audio = AudioManager.audio;
         this.playlist = [];
         this.currentIndex = 0;
         this.isPlaying = false;
+        this._attachOnly = attachOnly;
 
         this.init();
     }
@@ -2196,12 +2452,24 @@ class MusicPlayer {
         this.prevBtn = this.container.querySelector('.music-btn-prev');
         this.nextBtn = this.container.querySelector('.music-btn-next');
 
-        // 绑定事件
         this.bindEvents();
+        AudioManager.attach(this);
 
-        // 加载音频
-        if (this.src) {
+        if (this._attachOnly && AudioManager.isPlaying) {
+            // 正在播放，只同步 UI
+            this.syncUI();
+        } else if (this.src) {
             this.loadTrack(this.src);
+        }
+    }
+
+    syncUI() {
+        this.isPlaying = true;
+        this.container.classList.add('playing');
+        this.updatePlayButton();
+        if (this.audio.duration) {
+            this.updateDuration();
+            this.updateProgress();
         }
     }
 
@@ -2234,15 +2502,14 @@ class MusicPlayer {
     }
 
     loadTrack(src) {
-        this.audio.src = src;
-        this.audio.load();
+        AudioManager.load(src);
     }
 
     togglePlay() {
         if (this.isPlaying) {
-            this.audio.pause();
+            AudioManager.pause();
         } else {
-            this.audio.play().catch(e => console.error('播放失败:', e));
+            AudioManager.play();
         }
     }
 
