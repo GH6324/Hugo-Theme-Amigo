@@ -1942,6 +1942,7 @@ class MusicCardPlayer {
         this.name = container.dataset.name;
         this.artist = container.dataset.artist;
         this.isApi = container.dataset.isApi === 'true';
+        this.resolvedSrc = this.isApi ? null : this.src;
 
         this.audio = AudioManager.audio;
         this.playBtn = container.querySelector('.amigo-music-card__play');
@@ -1951,20 +1952,20 @@ class MusicCardPlayer {
         this.timeCurrent = container.querySelector('.amigo-music-card__time--current');
         this.timeDuration = container.querySelector('.amigo-music-card__time--duration');
 
-        if (!attachOnly) {
-            if (this.isApi && this.src) {
-                this.fetchAndSetAudioUrl(this.src);
-            } else if (this.src) {
-                AudioManager.load(this.src);
-            }
-        }
-
         this.bindEvents();
-        AudioManager.attach(this);
 
-        // 如果正在播放，同步 UI
-        if (AudioManager.isPlaying) {
-            this.syncUI();
+        if (this.resolvedSrc && AudioManager.src === this.resolvedSrc) {
+            AudioManager.attach(this);
+            if (AudioManager.isPlaying) {
+                this.syncUI();
+            } else {
+                this.onLoadedMetadata();
+                this.onTimeUpdate();
+            }
+        } else if (attachOnly) {
+            // attachOnly used by PJAX resume; only attach when src matches
+        } else {
+            this.resetUI();
         }
     }
 
@@ -1972,12 +1973,14 @@ class MusicCardPlayer {
         try {
             const response = await fetch(apiUrl);
             const data = await response.json();
-            if (data.url) {
-                AudioManager.load(data.url);
+            if (data && data.url) {
+                this.resolvedSrc = data.url;
+                return data.url;
             }
         } catch (e) {
-            console.error('获取音频URL失败:', e);
+            console.error('fetch audio url failed:', e);
         }
+        return null;
     }
 
     bindEvents() {
@@ -1995,41 +1998,86 @@ class MusicCardPlayer {
 
         if (this.seekInput) {
             this.seekInput.addEventListener('input', (e) => {
+                if (!this.isActive()) return;
                 this.isSeeking = true;
                 this.updateSeekVisual(e.target.value / 1000);
             });
             this.seekInput.addEventListener('change', (e) => {
-                if (this.audio && this.audio.duration) {
+                if (this.isActive() && this.audio && this.audio.duration) {
                     this.audio.currentTime = (e.target.value / 1000) * this.audio.duration;
                 }
                 this.isSeeking = false;
             });
         }
 
-        this.audio.addEventListener('timeupdate', () => this.onTimeUpdate());
-        this.audio.addEventListener('loadedmetadata', () => this.onLoadedMetadata());
-        this.audio.addEventListener('ended', () => this.onEnded());
-        this.audio.addEventListener('play', () => this.onPlay());
-        this.audio.addEventListener('pause', () => this.onPause());
+        this.audio.addEventListener('timeupdate', () => { if (this.isActive()) this.onTimeUpdate(); });
+        this.audio.addEventListener('loadedmetadata', () => { if (this.isActive()) this.onLoadedMetadata(); });
+        this.audio.addEventListener('ended', () => { if (this.isActive()) this.onEnded(); });
+        this.audio.addEventListener('play', () => {
+            if (this.isActive()) {
+                this.onPlay();
+            } else {
+                this.resetUI();
+            }
+        });
+        this.audio.addEventListener('pause', () => { if (this.isActive()) this.onPause(); });
+    }
+
+    isActive() {
+        return AudioManager._audio && AudioManager._audio._player === this;
     }
 
     syncUI() {
-        this.isPlaying = true;
-        this.container.setAttribute('data-playing', 'true');
-        if (this.playBtn) this.playBtn.setAttribute('aria-pressed', 'true');
+        this.isPlaying = AudioManager.isPlaying;
+        this.container.setAttribute('data-playing', this.isPlaying ? 'true' : 'false');
+        if (this.playBtn) this.playBtn.setAttribute('aria-pressed', this.isPlaying ? 'true' : 'false');
         if (this.audio.duration) {
             this.onLoadedMetadata();
             this.onTimeUpdate();
         }
     }
 
-    togglePlay() {
-        if (!this.audio) return;
-        if (this.isPlaying) {
-            AudioManager.pause();
-        } else {
-            AudioManager.play();
+    resetUI() {
+        this.isPlaying = false;
+        this.container.setAttribute('data-playing', 'false');
+        if (this.playBtn) this.playBtn.setAttribute('aria-pressed', 'false');
+        this.container.style.setProperty('--music-progress', '0%');
+        if (this.seekInput) this.seekInput.value = 0;
+        if (this.timeCurrent) this.timeCurrent.textContent = '0:00';
+        if (this.timeDuration) this.timeDuration.textContent = '--:--';
+    }
+
+    async togglePlay() {
+        if (this.isActive()) {
+            if (AudioManager.isPlaying) {
+                AudioManager.pause();
+            } else {
+                AudioManager.play();
+            }
+            return;
         }
+
+        this.takeOver();
+
+        let src = this.resolvedSrc;
+        if (!src && this.isApi && this.src) {
+            src = await this.fetchAndSetAudioUrl(this.src);
+        }
+        if (!src) return;
+
+        if (AudioManager.src !== src) {
+            AudioManager.load(src);
+        }
+        AudioManager.play();
+    }
+
+    takeOver() {
+        const prev = AudioManager._audio && AudioManager._audio._player;
+        if (prev && prev !== this && typeof prev.resetUI === 'function') {
+            prev.resetUI();
+        }
+        AudioManager.pause();
+        AudioManager.attach(this);
     }
 
     onPlay() {
@@ -2048,7 +2096,7 @@ class MusicCardPlayer {
         this.isPlaying = false;
         this.container.setAttribute('data-playing', 'false');
         if (this.playBtn) this.playBtn.setAttribute('aria-pressed', 'false');
-        this.audio.currentTime = 0;
+        if (this.audio) this.audio.currentTime = 0;
         this.updateSeekVisual(0);
     }
 
@@ -2094,18 +2142,17 @@ function initMusicCardPlayers() {
     });
 }
 
-// PJAX 切换后，将正在播放的音乐关联到新页面的播放器 UI
 function attachPlayingMusicPlayer() {
-    // 尝试关联 music-card
-    const card = document.querySelector('.amigo-music-card[data-amigo-music-card]');
-    if (card) {
-        new MusicCardPlayer(card, true);
-        card.dataset.cardInit = 'true';
-        return;
-    }
-    // 尝试关联 music-player
+    const cards = document.querySelectorAll('.amigo-music-card[data-amigo-music-card]');
+    cards.forEach(card => {
+        if (!card.dataset.cardInit) {
+            new MusicCardPlayer(card, true);
+            card.dataset.cardInit = 'true';
+        }
+    });
+
     const player = document.querySelector('.music-player');
-    if (player) {
+    if (player && !player.dataset.musicInit) {
         new MusicPlayer(player, true);
         player.dataset.musicInit = 'true';
     }
